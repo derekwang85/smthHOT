@@ -39,3 +39,57 @@
 ## 写代码
 
 匹配周围代码的写法、命名和注释密度。选能清楚解决问题的简单方案，只定义正在使用的抽象。验证改动涉及的重要行为，不为简单的样式改动写测试。
+
+---
+
+## 协作规约（derekcoding-framework）
+
+本项目已接入 derekcoding-framework 规约体系，采用「规约子模块 + 记忆分离」：
+
+- **规约层（子模块，只读上游）**：`.coding-framework/`。会话开始时读
+  `constitution/coding-ten-commandments.md`（十诫）与 `methodology/index.md`（方法论路由），
+  按场景按需加载对应方法论。工程纪律、认知纪律（置信度/来源/反谄媚）、提交队列与门禁均按其执行。
+- **记忆层（独立团队仓）**：`team-memory/`（derekwang85/smthhot-team-memory），已 gitignore，不与本仓混淆。
+
+### 会话启动
+
+1. 读 `.coding-framework/constitution/coding-ten-commandments.md`
+2. 读 `.coding-framework/methodology/index.md`，按当前任务选方法论
+3. 任务前 recall 团队经验：`python3 .coding-framework/scripts/team-core/recall.py --team team-memory --query "<关键词>"`
+4. 按三轨制跟踪：WBS（造什么）/ Issue（修什么）/ TestCase（验对了没）
+
+### 强制门禁（改动前）
+
+- 改动 >3 文件 或 >30 分钟 → 写 Pre-Execution Manifest（`constitution/pre-execution-manifest.md`）
+- 设计 DB schema / API 契约 / 新三方集成 → 写 ADR；多方冲突先 Swarm（`methodology/13`）
+- 修 Bug → 冰山三层分析 + 涟漪 R1/R2/R3（复杂 Bug 还须 Reporter/Fixer/Verifier 三权隔离）
+
+### 经验回写（十诫 IX）
+
+1. 项目私有经验 → 写本文件目录旁的 `project_memory.md`（默认 private）
+2. 确认可团队共享 → 追加 `team-memory/patterns/` 或 `team-memory/decisions/`，过
+   `python3 .coding-framework/scripts/verify_asset.py <资产>` 校验，按 commit-protocol 提交推送到团队仓
+3. 同类 Bug 第三次出现 → 替换工具（十诫 X），不补第四个补丁
+
+### 命令形态
+
+- 三轨 CLI：`.coding-framework/dispatch/scripts/triple-track/{wbs,issue,testcase,spec}-cli.py`
+- 提交前校验：`.coding-framework/dispatch/scripts/gates/verify-commit.py verify <agent> <task> <wbs>`
+- 门禁一键：`.coding-framework/dispatch/scripts/gates/run-all-gates.sh`
+
+## 多站并存（行业 profile = submodule）
+
+主仓框架代码不绑定任一行业；`industry/` 是 git submodule，指向当前激活的行业 profile。决策见
+`team-memory/decisions/dual-profile-multisite.md`。
+
+- AI 站基线：`git@github.com:derekwang85/aihot-industry.git`（站名 `MyHOT`）
+- Commodity 站：`git@github.com:derekwang85/commodityhot-industry.git`（站名 `CommodityHOT`）
+
+切换站点（在 `industry/` 内 fetch + checkout 目标仓 commit），并把 `.gitmodules` 的 url 一并改到
+对应仓后 `git submodule sync industry && git submodule update --init --force industry`；再在新内容下
+跑 `npm run typecheck` 验证。改 `industry/` 本身时提交到对应的行业仓，别提交进主仓。
+
+## 运行环境
+
+- 宿主 Node 用 nvm 管，default = v24（`.bashrc`/`.profile` 已用 `nvm which default` 前置 v24 bin）。
+- 项目 Docker-first（见 `docs/deploy.md`）；宿主无 node_modules 时先 `npm i -w industry` / 由 docker 构建。

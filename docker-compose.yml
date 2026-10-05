@@ -91,6 +91,21 @@ services:
       - web
 
 volumes:
-  db: {}
-  data: {}
-  caddy: {}
+  db:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /media/cbnb/_opdata/smthhot-data/db
+  data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /media/cbnb/_opdata/smthhot-data/data
+  caddy:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /media/cbnb/_opdata/smthhot-data/caddy

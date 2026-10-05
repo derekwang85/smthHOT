@@ -1,0 +1,6 @@
+[submodule ".coding-framework"]
+	path = .coding-framework
+	url = git@github.com:derekwang85/derekcoding-framework.git
+[submodule "industry"]
+	path = industry
+	url = git@github.com:derekwang85/commodityhot-industry.git

@@ -14,3 +14,9 @@ apps/web/.react-router/
 # Font package unpacked to regenerate the report nameplates (docs/customize.md)
 package/
 fontsource-noto-sans-sc-*.tgz
+
+# derekcoding-framework 团队记忆仓（独立 git 仓，随团队共享，不随本仓提交）
+team-memory/
+
+# derekcoding-framework 三轨制运行数据（WBS/Issue 归档）
+archives/

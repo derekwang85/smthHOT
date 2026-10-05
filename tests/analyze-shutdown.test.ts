@@ -25,7 +25,7 @@ let active: {
 const provider = await stub(async (_hit, request) => {
   const body = JSON.parse(request.body);
   const system = String(body.messages[0]?.content ?? "");
-  const step: Step = system.includes("宽召回的AI相关性预筛") ? "prefilter" : system.includes("事件注意力评分器") ? "score"
+  const step: Step = system.includes("有色金属相关性预筛") ? "prefilter" : system.includes("事件冲击力评分器") ? "score"
     : system.includes("资料结构化助手") ? "structure" : "understand";
   active.calls.push(step);
   const count = active.calls.filter(s => s === step).length;
@@ -35,10 +35,10 @@ const provider = await stub(async (_hit, request) => {
   }
   if (step === "structure" && count === 1) { active.structureAsked.open(); await active.structureAnswer.promise; }
   if (step === "understand" && active.writingAnswer) { active.writingAsked!.open(); await active.writingAnswer.promise; }
-  const content = step === "prefilter" ? { label: "PASS", reason: "AI model release" }
+  const content = step === "prefilter" ? { label: "PASS", reason: "有色金属库存数据" }
     : step === "score" ? { attentionScore: 80 }
-      : step === "structure" ? { category: "ai-models", tags: ["模型发布"], subjects: [], fact: { title: "新模型发布" } }
-        : { itemType: "model_release", authorRole: "principal", tags: ["模型发布"], editorialJudgment: "模型有明确的能力提升", titleZh: `新模型发布 ${T}`, summaryZh: "模型发布并提供了评测和价格。" };
+      : step === "structure" ? { category: "copper", tags: ["供给事件"], subjects: [], fact: { title: "铜矿产出下滑" } }
+        : { itemType: "supply_event", authorRole: "principal", tags: ["供给事件"], editorialJudgment: "金属矿产产出有明确变化", titleZh: `铜矿产出下滑 ${T}`, summaryZh: "铜矿产出下滑并更新了平衡与价格预期。" };
   return { id: `stub-${active.calls.length}`, choices: [{ message: { content: JSON.stringify(content) } }], usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 } };
 });
 const children = new Set<ReturnType<typeof spawn>>();
