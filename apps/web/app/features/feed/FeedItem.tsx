@@ -10,6 +10,7 @@ import { ScoreLabel } from "../../components/ui/Score";
 import { MediaThumbs, SourceLine, StarButton } from "./parts";
 import { GroupDevelopments, GroupSources, LatestDevelopment } from "./ReadingGroup";
 import { QuotedLine } from "../item/QuotedPost";
+import { fullDateTime, relativeTime } from "../../lib/format";
 
 export interface FeedItemProps {
   item: FeedItemSummary;
@@ -32,6 +33,11 @@ export const FeedItem = memo(function FeedItem({ item, group, filters, read = fa
     <article className="relative min-w-0 lg:card lg:card-hover lg:px-[18px] lg:pb-[14px] lg:pt-[15px]" data-item-id={item.id}>
       <header className="flex min-h-[18px] items-center gap-2 text-[12.5px] leading-[18px] text-ink-4">
         <SourceLine item={item} className="text-ink-4" />
+        {item.publishedAt && (
+          <time dateTime={item.publishedAt} className="hidden shrink-0 text-[12.5px] text-ink-4 min-[400px]:inline" suppressHydrationWarning title={fullDateTime(item.publishedAt)}>
+            发布于 {relativeTime(item.publishedAt)}
+          </time>
+        )}
         {item.selected && (
           <span className="hidden lg:inline-flex">
             <SelectedBadge />

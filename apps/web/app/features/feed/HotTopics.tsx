@@ -24,7 +24,7 @@ function TrendMark({ trend }: { trend: HotStripEntry["trend"] }) {
  * columns of fixed width so every row lines up — who is talking (精选组 faces, from sm), "N 热度" and an arrow for
  * where it is heading. The whole row lights up on hover.
  */
-export function HotTopics({ entries }: { entries: HotStripEntry[] }) {
+export function HotTopics({ entries, titleOverride }: { entries: HotStripEntry[]; titleOverride?: string }) {
   if (entries.length === 0) return null;
   return (
     <section
@@ -37,7 +37,7 @@ export function HotTopics({ entries }: { entries: HotStripEntry[] }) {
             <span className="absolute inline-flex size-full animate-ping rounded-full bg-hot opacity-40" />
             <span className="relative inline-flex size-2 rounded-full bg-hot" />
           </span>
-          当前热点
+          {titleOverride ?? "当前热点"}
         </h2>
         <Link to="/hot" className="group inline-flex items-center gap-1 text-[12.5px] text-ink-3 transition-colors hover:text-accent">
           完整榜单 <IconArrowRight size={13} className="transition-transform duration-200 group-hover:translate-x-0.5" />
