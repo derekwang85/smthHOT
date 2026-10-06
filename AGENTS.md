@@ -89,6 +89,36 @@
 对应仓后 `git submodule sync industry && git submodule update --init --force industry`；再在新内容下
 跑 `npm run typecheck` 验证。改 `industry/` 本身时提交到对应的行业仓，别提交进主仓。
 
+## 部署约束（当前机器 · CommodityHOT）【所有 Agent 开新任务前必读】
+
+当前这台机器上**激活的站点是 CommodityHOT（有色金属产业链情报台）**，另有旧 AIHOT Docker 栈共存。排查、改码、走查、重启前必须先确认落点在哪个栈，不要在错误的一端动手。
+
+**现状速查**
+- **当前站点 = CommodityHOT**：`industry/` 指向 `commodityhot-industry` submodule（站名 `CommodityHOT`）。
+- **数据目录**：`/media/cbnb/_opdata/smthhot-data/commodity-data`
+- **数据库**：`commodityhot`，位于 `smthhot-testdb` 容器（宿主 `127.0.0.1:5432`，用户 `test`，见 `.env.commodity`）。
+- **端口**：web **`127.0.0.1:3200`**（对外全网络），API **`127.0.0.1:3002`**（仅本机）。**只对 `:3200` 做 UX 走查，不要碰其它端口。**
+
+**CommodityHOT 运行方式（非 Docker，裸 node）**
+三个进程分别后台运行，web 需先构建：
+```bash
+export PATH="/home/cbnb/.nvm/versions/node/v24.15.0/bin:$PATH"
+node --env-file=.env.commodity scripts/migrate.ts        # 幂等，可重复
+npm run build -w @aihot/web                               # 改前端后必须重建
+
+node --env-file=.env.commodity apps/api/src/main.ts &          # API :3002
+node --env-file=.env.commodity apps/worker/src/main.ts &       # worker（抓取/模型/定时）
+(cd apps/web && node --env-file=../../.env.commodity server.ts)  # web :3200
+```
+
+**治理红线（违反即事故）**
+- **不要改动 `.env` 与 `.env.commodity`**（密钥、端口、开关都在里面）。
+- **docker（`aihot-*` 容器、`docker-compose.yml`）是旧 AIHOT 站的部署，不要动它**；也不要在本仓库根目录执行 `docker compose up/build`（那会用当前 commodity 化的 `industry/` 去重建替换旧 AIHOT 栈）。
+- CommodityHOT 的数据库操作只到 `commodityhot` 库；**不要写 AIHOT 库**（除非使用者明确单独授权修复数据）。
+- 开发/测试安全阀保持关闭：`COLLECT_ENABLED`、`MODEL_CALLS_ENABLED`、`FEISHU_*_ENABLED`、`INDEXNOW_SUBMIT_ENABLED`；测试不访问任何外部服务。
+- 多站并存意味着同一主仓代码会被切到不同行业，改动 `apps/`、`packages/` 时确保对两个 profile 都成立（`industry/*` 差异在 submodule 层）。
+- 改 `industry/` 内容提交到对应的行业仓，别提交进主仓。
+
 ## 运行环境
 
 - 宿主 Node 用 nvm 管，default = v24（`.bashrc`/`.profile` 已用 `nvm which default` 前置 v24 bin）。

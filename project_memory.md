@@ -72,8 +72,31 @@ python3 scripts/pattern-feed.py --source unknown
 
 ### 待办 / 余留（未做）
 - 主仓仍有一批**既有文件未提交、与本次任务无关**：`docs/commodityHOT-plan.md`、`docs/commodityHOT-strategy-swarm.md`、`industry/`（submodule 状态 m）、`scripts/commodity-data-pilot.ts`、`dispatch/`（含孤立 ux-flow-patterns.json）、`tests/admin-ux-linkage.test.ts`。新会话按需决定是否整理提交。
-- **fulltest 基线尚未正式 store 为「绿基线 R1 对照」**：LL-001 记录了 154P/0F 与 `fulltest-baseline-R1.md`，但那是演示生成，未接入 CI/cron。若需正式守质量，下一步把 `scripts/fulltest-auto-loop.sh` 接进项目 cron 或 CI 触发。
-- **UX 走查（P5）**：前一轮待办的「建立用户使用逻辑 + UX 走查」尚未系统执行。首页今日影响/罗盘改版后建议做一次移动端+桌面端走查。
+
+## 会话交接快照（2026-10-06 · fulltest CI/cron 接入 + UX 走查完成）
+
+> 基于上一快照继续。待办里「fulltest 未接 CI/cron」「UX 走查未做」两项本会话已完成，见下。
+
+### 本会话完成情况
+
+**目标 1 —— fulltest 绿基线接入 CI/cron（已完成并验证）**
+- **修复 runner 退出码**（`scripts/fulltest-node-runner.sh`）：junit 分支不再用 `|| true` 吞错，改为透传 `node --test` 真实退出码；spec 模式同。此前"测试失败但退出码 0"会让 cron/CI 检测不到回归。已实测：正常路径 exit 0，强制失败路径 exit 1。
+- **修复 evolve 基线比较 bug**（`scripts/fulltest-evolve.py`）：`prev_pass` 提取正则原先只匹配中文「通过…NN」，而 `auto_write_baseline` 写英文「Pass: NN」，导致 prev_pass 恒为 0、每次运行都被当改进、基线无限自增。改为双格式兼容匹配。已实测 154/0 → `All pass! Baseline: R2`（不再自增）；152/2 → `⚠ REGRESSION`。
+- **cron 守护已装**：`scripts/fulltest-cron-gate.sh`（重置空库 → migrate → runner → evolve feed）+ crontab 每日 `30 3 * * *`。已实测 gate 全绿 GATE_EXIT=0（154P/0F，49s，守住 R2 基线）。注意：cron-gate 依赖本机 `docker exec smthhot-testdb` + 固定 nvm node 路径，只用于本机 cron，**不适用 GitHub CI**。
+- **CI 接入**：`.github/workflows/check.yml` 新增 `fulltest` job —— 用独立 postgres service `commodityhot_ci`（满足 invariant `*_ci`），`node scripts/migrate.ts` 后跑 `scripts/fulltest-node-runner.sh`（junit），解析 pass/fail 交 `fulltest-evolve.py`，任何失败退出非零使 CI 变红。YAML 校验通过（jobs: check/fulltest/docker）。CI 用专用一次性空库，**不触碰生产 commodityhot 库**；DATABASE_URL 显式 `*_ci` 满足 tests/setup.ts invariant。
+
+**目标 2 —— UX 走查（P5）：首页改版 移动端+桌面端（已完成）**
+- **走查对象**：严格限定 commodity 站 `:3200`（按部署约束，未碰 :3000/:3300）。
+- **前端代码层：无断裂**。桌面端首页/`/impact`/`/all` 均验证：品种罗盘 7 chips 响应式（移动 `overflow-x-auto` 横滑、桌面 `lg:flex-wrap` 换行）；今日影响空态 + 完整列表链接；FeedItem 双时间戳逻辑正确（`showDual` 判定 + `min-[400px]:inline`）；移动 tabbar + 底部导航渲染；无 console 错误；关键路由 `/?/impact//all//daily//topics//about//feedback` 200 无断链（`/feed`→`/feed.xml` 合法重定向；`/search` 无此路由，404 属正常）。
+- **部署修复**：`:3200` commodity web 先前跑的是**陈旧 build**（`/impact` 缺罗盘，showCompass 未生效）。已按部署约束在 `apps/web` 目录重建 build 并重启 (pid 2271482)，`/impact` 罗盘现已出现；commodity 栈 3200/3002 自洽、连接 commodityhot 库。
+- **数据层阻断（非前端 bug，已定位，需使用者决策）**：
+  1. **commodity 库 `selected=0`**（568 条 publication，195 eligible）→ 首页「今日影响」+「最新精选」全空。根因：最有价值的市场新闻（铜价/铜产量 62 分，SMM/Mining.com）全来自 **T2 信源**，而 `industry/selection.ts` 的 **T2 门槛 = 70**，62 分过不了；T1 一手源（10 个）产出极差（最高商务部 38 分、5 个源 0 条如 LME/INE/SHFE/GACC/Cochilco）。按 AGENTS.md 门槛须用标注样本校准（`docs/selection.md` + `scripts/eval-selection.ts`），未擅改数字。
+  2. **`published_at` 大量为空**（558/568 条）→ FeedItem 双时间戳（首发/原文）在 FeedItem 逻辑正确但缺数据无法渲染，`/all` 仅 rail 显示采集时间。属采集层未解析/回填原文发布时间。
+
+### 后续建议
+- 首页空态是数据层：建议跑 `scripts/eval-selection.ts` 在用户标注样本上校准 T2（或分级）门槛，并核对 5 个零产出 T1 源的采集失败原因。
+- `published_at` 回填：核对 commodity 采集管线是否解析 RSS `pubDate`/页面发布时间并写入 `publications.published_at`。
+- 本会话改动的脚本（runner/evolve/cron-gate/check.yml）未提交，移交时按需 commit。
 
 ### 关键约束提醒
 - 不动 `apps/`、`packages/` 之外；行业相关改 `industry/`（submodule，提交到对应 profile 仓而非主仓）。
@@ -86,4 +109,30 @@ python3 scripts/pattern-feed.py --source unknown
 - 项目来源：AIHOT 开源框架 → 改造为大宗商品热点站（先跑有色金属）。
 - 行业相关改动全在 `industry/`，代码层（`apps/`、`packages/`）不动。
 - 验证命令按根 `AGENTS.md`「运行与检查」；开发/测试安全阀保持关闭。
+
+---
+
+## 会话交接快照（2026-10-06 · 五人项修正 + 部署规约 + 信源隔离修复）
+
+**本会话交付（全部已验证、已重建重启 commodityHOT）**：
+
+1. **部署约束写入规约**：根 [AGENTS.md](AGENTS.md) 新增「部署约束（当前机器 · CommodityHOT）」小节——当前站=CommodityHOT、数据目录、`commodityhot` 库、端口 3200/3002、裸 node 启动命令、治理红线（不改 `.env.*`、不碰 aihot docker/`docker compose`、不写 AIHOT 库、安全阀关闭）。让后续 agent 开新任务前先读。
+
+2. **信源隔离修复（数据层，直接改两库）**：
+   - **commodityhot 库**：`scripts/seed.ts`（`ON CONFLICT DO NOTHING`）补回 18 个被混入 AIHOT 的有色信源 → 现 39 个 config 源全部在位（另剩 1 个杂源 `seekingalpha` 未动）。
+   - **AIHOT docker 库**（显式授权修复）：删除混入的 39 个 commodity 信源及其 513 articles / 464 publications（级联），现仅剩 18 个真正的 AI `rss-*` 源（536 pubs）。清理后 `/api/admin/sources` 与库内一致（40/36/1failing/14degraded）。
+
+3. **精选页分离**：`apps/web/app/routes/home.tsx` 移除首页内嵌「今日影响 + 品种罗盘」block，首页只留「今日热点 + 最新精选 feed」（沿用 AIHOT 精选逻辑）。
+
+4. **移动端补「今日」菜单**：`components/shell/nav.ts` TABBAR 增 `/impact·今日`（置于精选后，`/impact` 移出 `MORE_PATHS`）；`MobileTabBar.tsx` 栅格 4→5 列。
+
+5. **/admin 与信源管理 UX 走查流程**：新增 `docs/ux-walkthrough.md`（双端+管理后台+信源数量/质量数据链检查清单，含真实 SQL 与报告模板）。
+
+**验证**：`npm run typecheck` 通过；`npm run build -w @aihot/web` 成功；web(PID 2532551) 已按部署命令在 `:3200` 重启。SSR 断言：`/` 无 `id="today-impact"`、无「品种罗盘」、含「最新精选」+底部「今日」Tab；`/impact` 200 含「品种罗盘」；全公开路由 200、`/feed` 301。admin 登录 + `/api/admin/sources` 数据与库一致。
+
+**遗留/建议（数据·运营层，需使用者决策，未擅动）**：
+- commodity 首页精选仍 0 selected（195 eligible）：T2 门槛 70 过严、T1 源仍部分缺内容（smm/lme 等刚补回尚未采集）。建议用 `scripts/eval-selection.ts` 在标注样本上校准分级门槛（见 `docs/selection.md`）。
+- 5 个 T1 源（LME/INE/SHFE/GACC/Cochilco）长期 0 产出 → 核查采集器解析器回填（含 `published_at` 大量为空 558/568）。
+- 本会话源码改动（home.tsx/nav.ts/MobileTabBar.tsx/AGENTS.md/ux-walkthrough.md/.github）未 commit，移交时按需提交。
+- 数据仓库存在杂源 `seekingalpha`(commodityhot) 原已有、非本次目标，如需清理另行决策。
 - 接入 derekcoding-framework：规约子模块 `.coding-framework/` + 记忆分离团队仓 `team-memory/`。
