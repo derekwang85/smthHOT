@@ -197,7 +197,7 @@ export async function loadTimeline(q: TimelineQuery): Promise<Omit<TimelineRespo
   const refreshAt = await refreshAtRead;
   const last = page[page.length - 1];
   const nextCursor = hasMore && last ? encodeCursor("tl1", { a: last.anchor_at.getTime(), g: last.gk, b: bind }) : null;
-  return { filters: { channel: q.channel, category: q.category, tag: q.tag, topic: q.topic ?? null }, cards, nextCursor, refreshAt, dayCounts };
+  return { filters: { channel: q.channel, category: q.category, tag: q.tag, topic: q.topic ?? null }, cards, nextCursor, refreshAt, dayCounts, impact: null };
 }
 
 /** Earliest pending release in this scope; caches of this scope must expire by then. */

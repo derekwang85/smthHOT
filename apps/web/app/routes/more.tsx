@@ -6,7 +6,7 @@ import type { loader as rootLoader } from "../root";
 import { useChangelogDot } from "../components/shell/Sidebar";
 import { pageMeta } from "../lib/seo";
 import { ThemeSwitch } from "../components/shell/ThemeSwitch";
-import { IconBookmark, IconChart, IconChevronRight, IconFlame, IconGrid, IconHeart, IconHistory, IconMessage, IconMoon, IconPlug } from "../components/icons";
+import { IconBookmark, IconBolt, IconChart, IconChevronRight, IconFlame, IconGrid, IconHeart, IconHistory, IconMessage, IconMoon, IconPlug } from "../components/icons";
 
 /** Shared caches may keep this page for five minutes. */
 export function headers() {
@@ -32,6 +32,7 @@ const GROUPS: Array<{ title: string; rows: Row[] }> = [
   {
     title: "偏好",
     rows: [
+      { to: "/impact", label: "今日影响", icon: <IconBolt size={18} /> },
       { to: "/hot", label: "热点榜", icon: <IconFlame size={18} /> },
       { to: "/starred", label: "收藏", icon: <IconBookmark size={18} /> },
     ],

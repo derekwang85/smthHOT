@@ -11,6 +11,7 @@ import { loadStoryFollowups } from "@aihot/backend/publication/followups";
 import { loadDevelopments, loadGroupReports } from "@aihot/backend/publication/groups";
 import { loadTopicTags } from "@aihot/backend/publication/topics";
 import { loadHotStrip } from "@aihot/backend/events/hot-read";
+import { loadTodayImpact } from "@aihot/backend/publication/impact";
 import { loadChangelog, siteMeta } from "@aihot/backend/site/meta";
 import { loadContact, loadMakerAvatar } from "@aihot/backend/site/contact";
 import { loadSiteStats } from "@aihot/backend/site/stats";
@@ -91,13 +92,14 @@ export function registerSite(app: FastifyInstance) {
     const filters = await parseFilters(q);
     const limit = Math.min(Math.max(Number(q.limit) || 20, 1), 40);
     const unfiltered = filters.channel === "all" && !filters.category && !filters.tag && !filters.topic && !q.cursor;
-    const [data, hot] = await Promise.all([
+    const [data, hot, impact] = await Promise.all([
       loadTimeline({ ...filters, cursor: q.cursor || null, limit }),
       unfiltered ? loadHotStrip() : null,
+      unfiltered ? loadTodayImpact() : null,
     ]);
-    const body = { ...data, hot, generatedAt: new Date().toISOString() };
+    const body = { ...data, hot, impact, generatedAt: new Date().toISOString() };
     const cc = cacheUntil(reply, 60, data.refreshAt);
-    return sendJsonWithEtag(req, reply, body, { etagPrefix: "tl", cacheControl: cc, etagOf: { ...data, hot } });
+    return sendJsonWithEtag(req, reply, body, { etagPrefix: "tl", cacheControl: cc, etagOf: { ...data, hot, impact } });
   }));
 
   app.get("/api/site/pool", siteHandler(async (req, reply) => {

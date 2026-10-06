@@ -64,7 +64,7 @@ export interface ItemSummary {
 }
 
 /** The fields rendered by a site feed card; full original text lives in the item detail. */
-export interface FeedItemSummary extends Pick<ItemSummary, "id" | "title" | "summary" | "reason" | "publishedAt" | "timelineAt" | "category" | "tags" | "score" | "selected" | "channel"> {
+export interface FeedItemSummary extends Pick<ItemSummary, "id" | "title" | "summary" | "reason" | "publishedAt" | "discoveredAt" | "timelineAt" | "category" | "tags" | "score" | "selected" | "channel"> {
   source: Pick<SourceRef, "name">;
   x: (Pick<XPostView, "authorName" | "handle" | "avatarUrl" | "avatarSrcSet" | "media"> & {
     quoted: Omit<NonNullable<XPostView["quoted"]>, "url"> | null;
@@ -102,6 +102,20 @@ export interface HotStripEntry {
   participantCount: number;
 }
 
+/** A "今日影响" entry: a selected item rendered like a feed card. */
+export type ImpactEntry = FeedItemSummary;
+
+/** The "今日影响" list: the few selected items with the day's highest editorial attention scores,
+ *  i.e. the ones a judgement call says are most likely to move the market. Empty (or null) when none. */
+export interface TodayImpact {
+  /** Beijing date these are for, e.g. "2026-10-06". */
+  day: string;
+  /** How the list was formed, so the page can explain it to the reader. */
+  basis: { threshold: number; count: number };
+  entries: ImpactEntry[];
+  generatedAt: string;
+}
+
 export interface TimelineFilters {
   channel: ChannelKey;
   category: CategoryKey | null;
@@ -116,6 +130,8 @@ export interface TimelineResponse {
   /** Absolute time when a pending item in this scope becomes visible; the page re-checks then. */
   refreshAt: string | null;
   hot: HotStripEntry[] | null;
+  /** Today's impact list; null when the page is filtered or none cleared the bar. */
+  impact: TodayImpact | null;
   dayCounts: Record<string, number>;
   generatedAt: string;
 }

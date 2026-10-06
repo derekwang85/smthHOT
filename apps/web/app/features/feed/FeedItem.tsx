@@ -10,7 +10,7 @@ import { ScoreLabel } from "../../components/ui/Score";
 import { MediaThumbs, SourceLine, StarButton } from "./parts";
 import { GroupDevelopments, GroupSources, LatestDevelopment } from "./ReadingGroup";
 import { QuotedLine } from "../item/QuotedPost";
-import { fullDateTime, relativeTime } from "../../lib/format";
+import { beijingTime, fullDateTime, relativeTime } from "../../lib/format";
 
 export interface FeedItemProps {
   item: FeedItemSummary;
@@ -28,14 +28,20 @@ export const FeedItem = memo(function FeedItem({ item, group, filters, read = fa
   const showSources = !!group && (group.additionalSourceCount > 0 || (group.developmentCount <= 1 && group.reportCount > 1));
   const showDevelopments = !!group?.story && group.developmentCount > 1;
   const tags = showTags ? item.tags.slice(0, 3) : [];
+  // Dual timestamp: the first time we collected the feed item (首发) and the original post's time (原文).
+  // Only shown when they're meaningfully different; otherwise the reader just gets the published-ago hint.
+  const pub = item.publishedAt;
+  const disc = item.discoveredAt;
+  const showDual =
+    !!pub && !!disc && Number.isFinite(Date.parse(pub)) && Number.isFinite(Date.parse(disc)) && Date.parse(disc) !== Date.parse(pub);
 
   return (
     <article className="relative min-w-0 lg:card lg:card-hover lg:px-[18px] lg:pb-[14px] lg:pt-[15px]" data-item-id={item.id}>
       <header className="flex min-h-[18px] items-center gap-2 text-[12.5px] leading-[18px] text-ink-4">
         <SourceLine item={item} className="text-ink-4" />
         {item.publishedAt && (
-          <time dateTime={item.publishedAt} className="hidden shrink-0 text-[12.5px] text-ink-4 min-[400px]:inline" suppressHydrationWarning title={fullDateTime(item.publishedAt)}>
-            发布于 {relativeTime(item.publishedAt)}
+          <time dateTime={item.publishedAt} className="hidden shrink-0 text-[12.5px] text-ink-4 min-[400px]:inline" suppressHydrationWarning title={fullDateTime(showDual && disc ? disc! : item.publishedAt)}>
+            {showDual && disc ? `首发 ${beijingTime(disc)} · 原文 ${beijingTime(item.publishedAt)}` : `发布于 ${relativeTime(item.publishedAt)}`}
           </time>
         )}
         {item.selected && (
