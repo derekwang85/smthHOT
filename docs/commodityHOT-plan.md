@@ -310,6 +310,79 @@ export const SELECTION = {
 
 > 多语种信源多为无 RSS 官网 → `web_list` + 必要时 `parseMode:"markdown"`(Jina 按次计费)或 `detail`. 语种多时建议分阶段(en→zh 先跑通，再逐个加 es/fr/pt/ru/nl)。
 
+### 8.4 多语种一手信源清单（实测验证 · 本规划追加）
+
+> 以下信源经本机 curl 实测（2026-10，模拟浏览器 UA）。状态码说明：`200` 可直接接入；(403/526) 有反爬，需 `web_list` + `parseMode:"markdown"`（Jina 渲染）或 `detail` 兜底；(000) 连接/地区封锁，建议人工复核或换镜像。**实际抓取仍以后台"信源"页"试抓"结果为准。** 语种理由已按"产地一手才领先半步"筛选，不是凑数。
+
+#### 西班牙语 → 南美（智利铜 / 秘鲁铜锌 / 阿根廷锂）
+
+| 信源 | 国家/区域 | 覆盖品种/题材 | 实测 | 推荐 kind | tier |
+|---|---|---|---|---|---|
+| Codelco 官网首页/新闻 codelco.com | 智利 | 全球最大铜企：产量、罢工、劳资、Capex 一手公告 | 200 | web_list（官方一手） | T1 |
+| Minería Chilena mineriachilena.com + /feed | 智利 | 智利采矿：铜矿项目、政策、行业工会 | 200 / RSS 可用 | rss 优先 | T1_5 |
+| Mch.cl（矿业公报）+ /feed/ | 智利 | 智利矿业日报：供给/罢工/监管 / 安第斯铜矿带 | 200 / RSS 可用 | rss 优先 | T1_5 |
+| Minería Argentina mineria-argentina.com + /feed | 阿根廷 | **锂**（盐湖提锂）、铜、金；南锥体矿业政策 | 200 / RSS 可用 | rss 优先 | T1_5 |
+| El Periodico Minero（博客源，备用） | 泛拉美/玻利维亚 | 玻利维亚锂、拉美小矿种线索 | 404（不稳定） | 备用，不首推 | T2 |
+| Ministerio de Minería de Chile（政府，备） | 智利 | 官方采矿统计、产量数据、许可 | 需复核 | web_list | T1 |
+
+要点：智利（codelco/工会罢工）与秘鲁（Las Bambas、Antamina、社区封锁）是全球铜供给的"事件源头"，西语一手通常比英文转述快 24–48h。阿根廷盐湖（锂）是新能源金属新增选点。
+
+#### 葡萄牙语 → 巴西（铝土矿 / 铁合金 / 镍）
+
+| 信源 | 国家/区域 | 覆盖品种/题材 | 实测 | 推荐 kind | tier |
+|---|---|---|---|---|---|
+| Vale 淡水河谷官网新闻 vale.com | 巴西 | 铁矿石之外：**镍（Onça Puma）、铜（Salobo）、铝（Albras）**；季报/产量指引 | 200（英文 PT 站点） | web_list / json_list | T1 |
+| CBNA（巴西铝业协会）cbna.com.br | 巴西 | 巴西**铝**：产量、出口、行业数据 | 200 | web_list | T1 |
+| Agência Brasil（官媒）agenciabrasil.ebc.com.br | 巴西 | 官方宏观、矿业政策、出口统计 | 200 | web_list | T1_5 |
+| G1 Economia /g1/ g1.globo.com/economia | 巴西 | 巴西商业与大宗品综合 | 200 | web_list | T2 |
+
+要点：巴西是几内亚之外的铝土矿+冶炼重要产地，Vale 的镍铜与 CBNA 的铝是"南美冶炼端"一手。多数巴西站无 RSS，走 web_list。
+
+#### 法语 → 法语非洲（几内亚铝土 / 刚果金铜钴 / 尼日尔）＋全球商品
+
+| 信源 | 国家/区域 | 覆盖品种/题材 | 实测 | 推荐 kind | tier |
+|---|---|---|---|---|---|
+| Boursorama Matières Premières boursorama.com/bourse/matieres-premieres | 法国/全球 | 法文商品行情：基本金属、贵金属、能源、费率 | 200 | web_list | T2 |
+| LiveBourse livebourse.com | 法国/全球 | 法文金属报价：铜/铝/锌/铅/镍/锡 + LME 结构 | 200 | web_list | T2 |
+| Agence Ecofin（矿业专栏）agenceecofin.com | 非洲/法语区 | **非洲矿业一手**：刚果金铜钴、几内亚铝土、赞比亚铜 | 403（需 Jina fallback） | web_list+markdown | T1_5 |
+| Jeune Afrique jeuneafrique.com | 非洲/法语区 | 非洲政经与矿产资源国动态 | 403（需 Jina fallback） | web_list+markdown | T2 |
+| Guinée Matin guineematin.com | 几内亚 | **西非铝土**（几内亚存量/Boffa 等）、铁矿 | 200 | web_list | T1_5 |
+
+要点：法语非洲是 commodityHOT"非洲源头"的关键——几内亚铝土占全球出口大头、刚果金钴铜带是电池金属核心。Agence Ecofin/Jeune Afrique 有反爬，(403) 必须配 Jina fallback 或 detail。
+
+#### 俄语 → 俄罗斯（镍 / 钯 / 铝 / 铜 · 制裁断供链）
+
+| 信源 | 国家/区域 | 覆盖品种/题材 | 实测 | 推荐 kind | tier |
+|---|---|---|---|---|---|
+| RUSAL 俄铝官网 rusal.ru | 俄罗斯 | **铝**产能、出口制裁、氢铝影响、原料 | 200 | web_list | T1 |
+| Rusmet 俄罗斯冶金市场 rusmet.ru | 俄罗斯 | 独联体冶金/金属市场、出口禁令、钢铝 | 200 | web_list / json_list | T1_5 |
+| Interfax 商务频道 interfax.ru/business | 俄罗斯 | 官方社讯：制裁、关税、公司动向一手 | 200 | rss（如无走 web_list） | T1_5 |
+| PRIME 1prime.ru | 俄罗斯 | 俄罗斯商品/金属新闻、出口数据 | 200 | rss 优先 | T1_5 |
+| Nornickel 诺里尔斯克 nornickel.com/.ru | 俄罗斯 | **镍、钯、铜、铂**：产量、制裁、停产 | 000（连接/封锁，需复核） | web_list+Jina | T1 |
+| TASS 经济 tass.ru/ekonomika | 俄罗斯 | 国家通讯社：制裁/出口/宏观一手 | 200 | rss | T1_5 |
+| RIA 经济 ria.ru/economy | 俄罗斯 | 俄官方经济新闻源 | 200 | rss | T1_5 |
+
+要点：俄语是"镍/钯/铝制裁断供"的最快一手（Nornickel 停产、出口禁令对 LME 钯/镍价直接冲击）。nornickel.com 本机 000 多半是地区/Cloudflare 封锁，接入时配 Jina fallback。
+
+#### 阿拉伯语 → 海湾（铝冶炼 / 中亚/中东宏观）＋中东
+
+| 信源 | 国家/区域 | 覆盖品种/题材 | 实测 | 推荐 kind | tier |
+|---|---|---|---|---|---|
+| Al-Eqtisadiah（沙特经济日报）aleqt.com | 沙特 | 海湾宏观、能源价格对铝冶炼成本的传导、石化 | 200 | web_list | T1_5 |
+| Emirates 24/7 商业 emaratalyoum.com/business | 阿联酋 | 中东商业、经贸、宏观 | 200 | web_list | T2 |
+| Al Arabiya Business alarabiya.net/aswaq | 阿联酋/沙特 | 中东财经主流（原油-金属联动、海湾工业） | 403（需 Jina fallback） | web_list+markdown | T2 |
+
+要点：海湾是"低成本铝冶炼"与能源成本传导的关键（中东铝产能占全球可观份额），阿拉伯语财经源覆盖"油气-铝成本-海湾工业出口"这条独特链路。alarabiya 有反爬需 Jina fallback。
+
+### 8.5 多语种信源接入注意事项（好用性保障）
+
+1. **kind 选择优先级**：有稳定 RSS 的用 `rss`（省采集成本）；无 RSS 但列表规律的用 `web_list`；被反爬(403/526)的必须 `parseMode:"markdown"`(Jina 按次计费) 或配 `detail`，并在预算熔断里给 Jina 单独限额。
+2. **regional 字段建议**：给每个多语种源打 `region`（南美/非洲/俄罗斯/海湾）与 `commodityGroup`（铜/铝/锌/镍/锡/锂/贵金属），便于 taxonomy 把产地信号路由到品种主题页——这是"产地一手"转化成投资信号的落点。
+3. **语言 → 品种映射内置进 rules-domain.md(§6)**：西语 cobre=铜、俄语 никель=镍、法语 aluminium=铝等等价词表，保证多语种标题/摘要在归组和展示阶段归一化成中文。
+4. **一手判定**：官方域(codelco.com/vale.com/rusal.ru/nornickel.com)标 `first_party:true`、`tier:T1`；行业媒体(ecofin/jeuneafrique/metallplace)标 `T1_5`；财经转载标 `T2`。十字可信度(第四部分任务C)据此给事件打可信度。
+5. **分阶段接入**：先拉通 塞西语(智利/阿根廷锂) + 俄语(镍钯铝) 两条"产地一手"干道 → 再加法语(西非/刚果金) + 葡语(巴西) → 阿拉伯语(海湾) 收尾。每条干道先 2-3 源验证去重+翻译质量(任务G)后再扩。
+6. **小语种翻译质量护栏**：荷兰语等边缘语种暂缓或只入 `hot_signal`；对 es/pt/ru/ar/fr 都要有"人工抽检样本"确认翻译不出错，否则不进 editorial(呼应决策点4)。
+
 **外部推送 external（可选增强）**
 - 自己抓的交易所库存/升贴水结构化数据，经 `POST /api/ingest/items` 推进站，带 `_aihot.backfill` 控制旧文。
 

@@ -1,0 +1,50 @@
+[
+  {
+    "type": "nav_prop",
+    "description": "onNavigate prop 被命名为 _onNavigate（下划线前缀=未使用），页面无任何跨页跳转",
+    "fix": "移除 _ 前缀，在关键操作后添加 onNavigate 跳转按钮",
+    "added": "2026-08-13"
+  },
+  {
+    "type": "data_flow",
+    "description": "创建策略后无'去回测'跳转按钮，用户不知道下一步该验证策略",
+    "fix": "策略页添加'去回测'按钮，通过 NavPayload 传递 strategyId 到回测中心",
+    "added": "2026-08-13"
+  },
+  {
+    "type": "data_flow",
+    "description": "回测引擎 _resolve_strategy 只认硬编码模板名，用户创建的策略 ID 无法回测",
+    "fix": "_resolve_strategy 查 DecisionDB 获取 extra_meta.template，按模板解析策略类",
+    "added": "2026-08-13"
+  },
+  {
+    "type": "nav_payload",
+    "description": "品种卡有'查看行情'跳转但无'查看因子'/'创建策略'跳转，用户需手动切换页面",
+    "fix": "品种卡 Widget action 区添加多个跳转按钮，携带 symbol 上下文",
+    "added": "2026-08-13"
+  },
+  {
+    "type": "id_collision",
+    "description": "strategy_id 用 {SYMBOL}-{MMDD} 格式 + INSERT OR REPLACE，同日创建多个策略时后者覆盖前者",
+    "fix": "ID 格式升级为 {SYMBOL}-{MMDD}-{HHMMSS}-{毫秒}，确保唯一性",
+    "added": "2026-08-13"
+  },
+  {
+    "type": "feedback",
+    "description": "Copilot 'unknown' 意图直接报错'未能识别'，而非让 AI 尝试理解",
+    "fix": "unknown 意图改为流式 AI 编排（SSE），让 LLM 自主选择工具完成用户请求",
+    "added": "2026-08-13"
+  },
+  {
+    "type": "data_source",
+    "description": "回测结果未标注数据来源，用户不知道是真实数据还是合成数据",
+    "fix": "后端响应添加 data_source 字段，前端用 DataBadge 组件标注（绿=真实/黄=合成/灰=静态）",
+    "added": "2026-08-13"
+  },
+  {
+    "type": "nav_target",
+    "description": "onNavigate('backtest') 但 PAGE_MAP 注册 'backtests'（单复数偏差），parseHash 回落默认页，用户点击推单按钮跳转失败",
+    "fix": "导航目标必须引用路由注册表；新增 R7 检测 + R5 消费页判定用注册表",
+    "added": "2026-08-13"
+  }
+]
