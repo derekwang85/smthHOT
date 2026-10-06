@@ -40,6 +40,7 @@ interface AnalysisRow {
   reason_zh: string | null;
   score: number | null;
   selected: boolean | null;
+  signal: boolean | null;
 }
 
 interface OverrideRow {
@@ -53,6 +54,7 @@ interface PublicationRow {
   visibility: string;
   eligible: boolean;
   selected: boolean;
+  is_signal: boolean;
   title: string;
   original_title: string | null;
   summary: string | null;
@@ -133,7 +135,7 @@ export function v1Payload(p: {
 }
 
 /** Allocates the next ledger sequence under a transaction lock so sequence order equals commit order. */
-async function appendLedger(tx: Tx, articleId: string, op: "upsert" | "remove", payload: V1ItemPayload | null, visibleAt: Date, now: Date): Promise<number> {
+export async function appendLedger(tx: Tx, articleId: string, op: "upsert" | "remove", payload: V1ItemPayload | null, visibleAt: Date, now: Date): Promise<number> {
   await tx`SELECT pg_advisory_xact_lock(hashtext('selected_ledger'))`;
   const { next } = one(await tx<{ next: number }[]>`SELECT coalesce(max(seq), 0) + 1 AS next FROM selected_ledger`);
   await tx`INSERT INTO selected_ledger (seq, article_id, op, changed_at, visible_at, payload)
@@ -159,7 +161,7 @@ export async function publishArticleTx(tx: Tx, articleId: string, options: Publi
     SELECT id, name, kind, tier, participation_mode, first_party, site_fulltext, syndicate_fulltext FROM sources WHERE id = ${article.source_id}`;
   if (!source) return null;
   const [analysis] = await tx<AnalysisRow[]>`
-    SELECT id, relevance, category, tags, subjects, title_zh, summary_zh, reason_zh, score, selected
+    SELECT id, relevance, category, tags, subjects, title_zh, summary_zh, reason_zh, score, selected, signal
     FROM analyses WHERE article_id = ${articleId} ORDER BY input_revision DESC, id DESC LIMIT 1`;
   const [override] = await tx<OverrideRow[]>`SELECT fields, visibility FROM editorial_overrides WHERE article_id = ${articleId}`;
   const [membership] = await tx<{ fact_id: number; story_id: number | null }[]>`
@@ -181,6 +183,8 @@ export async function publishArticleTx(tx: Tx, articleId: string, options: Publi
   const score = typeof f.score === "number" ? f.score : analysis?.score ?? null;
   const relevance = typeof f.relevance === "string" ? (f.relevance as string) : analysis?.relevance ?? null;
   const judgedSelected = typeof f.selected === "boolean" ? (f.selected as boolean) : analysis?.selected ?? null;
+  // The signal gate rides the latest judgement; today-impact and the pooled selection read it.
+  const isSignal = analysis?.signal ?? false;
   // Material from an isolated source reaches no public surface at all: not even a detail page.
   const visibility = source.participation_mode === "isolated" ? "withdrawn" : (override?.visibility ?? "public");
 
@@ -230,7 +234,7 @@ export async function publishArticleTx(tx: Tx, articleId: string, options: Publi
   }
 
   const next = {
-    visibility, eligible, selected, title: title ?? collapseWhitespace(article.title), original_title: originalTitle, summary, reason,
+    visibility, eligible, selected, is_signal: isSignal, title: title ?? collapseWhitespace(article.title), original_title: originalTitle, summary, reason,
     category, tags, score: round1(score), body_mode: bodyMode, story_id: membership?.story_id ?? null, fact_id: membership?.fact_id ?? null,
     indexable,
   };
@@ -238,7 +242,7 @@ export async function publishArticleTx(tx: Tx, articleId: string, options: Publi
     !previous ||
     stableJson({ ...next, tags: [...next.tags].sort() }) !==
       stableJson({
-        visibility: previous.visibility, eligible: previous.eligible, selected: previous.selected, title: previous.title,
+        visibility: previous.visibility, eligible: previous.eligible, selected: previous.selected, is_signal: previous.is_signal, title: previous.title,
         original_title: previous.original_title, summary: previous.summary, reason: previous.reason, category: previous.category,
         tags: [...previous.tags].sort(), score: previous.score === null ? null : Number(previous.score), body_mode: previous.body_mode,
         story_id: previous.story_id, fact_id: previous.fact_id, indexable: previous.indexable,
@@ -246,16 +250,16 @@ export async function publishArticleTx(tx: Tx, articleId: string, options: Publi
   const revision = previous ? previous.revision + (changed ? 1 : 0) : 1;
 
   await tx`
-    INSERT INTO publications (article_id, analysis_id, revision, visibility, eligible, selected, title, original_title, summary,
+    INSERT INTO publications (article_id, analysis_id, revision, visibility, eligible, selected, is_signal, title, original_title, summary,
       reason, category, tags, score, source_id, channel, first_party, url, published_at, discovered_at, timeline_at, backfill,
       selected_ready_at, visible_after, body_mode, syndicate, indexable, story_id, fact_id, search_text, sort_at, updated_at)
-    VALUES (${articleId}, ${analysis?.id ?? null}, ${revision}, ${visibility}, ${eligible}, ${selected}, ${next.title},
+    VALUES (${articleId}, ${analysis?.id ?? null}, ${revision}, ${visibility}, ${eligible}, ${selected}, ${isSignal}, ${next.title},
       ${originalTitle}, ${summary}, ${reason}, ${category}, ${tags}, ${next.score}, ${source.id}, ${channel}, ${source.first_party},
       ${article.url}, ${article.published_at}, ${article.discovered_at}, ${article.timeline_at}, ${article.backfill},
       ${selectedReadyAt}, ${visibleAfter}, ${bodyMode}, ${syndicate}, ${indexable}, ${next.story_id}, ${next.fact_id}, ${searchText}, ${sortAt}, now())
     ON CONFLICT (article_id) DO UPDATE SET
       analysis_id = EXCLUDED.analysis_id, revision = EXCLUDED.revision, visibility = EXCLUDED.visibility,
-      eligible = EXCLUDED.eligible, selected = EXCLUDED.selected, title = EXCLUDED.title, original_title = EXCLUDED.original_title,
+      eligible = EXCLUDED.eligible, selected = EXCLUDED.selected, is_signal = EXCLUDED.is_signal, title = EXCLUDED.title, original_title = EXCLUDED.original_title,
       summary = EXCLUDED.summary, reason = EXCLUDED.reason, category = EXCLUDED.category, tags = EXCLUDED.tags,
       score = EXCLUDED.score, source_id = EXCLUDED.source_id, channel = EXCLUDED.channel, first_party = EXCLUDED.first_party,
       url = EXCLUDED.url, published_at = EXCLUDED.published_at, discovered_at = EXCLUDED.discovered_at,
@@ -264,7 +268,7 @@ export async function publishArticleTx(tx: Tx, articleId: string, options: Publi
       indexable = EXCLUDED.indexable, story_id = EXCLUDED.story_id, fact_id = EXCLUDED.fact_id,
       search_text = EXCLUDED.search_text, sort_at = EXCLUDED.sort_at, updated_at = now()
     WHERE (publications.analysis_id, publications.revision, publications.visibility, publications.eligible,
-        publications.selected, publications.title, publications.original_title, publications.summary,
+        publications.selected, publications.is_signal, publications.title, publications.original_title, publications.summary,
         publications.reason, publications.category, publications.tags, publications.score,
         publications.source_id, publications.channel, publications.first_party, publications.url,
         publications.published_at, publications.discovered_at, publications.timeline_at, publications.backfill,
@@ -272,7 +276,7 @@ export async function publishArticleTx(tx: Tx, articleId: string, options: Publi
         publications.indexable, publications.story_id, publications.fact_id, publications.search_text,
         publications.sort_at)
       IS DISTINCT FROM (EXCLUDED.analysis_id, EXCLUDED.revision, EXCLUDED.visibility, EXCLUDED.eligible,
-        EXCLUDED.selected, EXCLUDED.title, EXCLUDED.original_title, EXCLUDED.summary,
+        EXCLUDED.selected, EXCLUDED.is_signal, EXCLUDED.title, EXCLUDED.original_title, EXCLUDED.summary,
         EXCLUDED.reason, EXCLUDED.category, EXCLUDED.tags, EXCLUDED.score,
         EXCLUDED.source_id, EXCLUDED.channel, EXCLUDED.first_party, EXCLUDED.url,
         EXCLUDED.published_at, EXCLUDED.discovered_at, EXCLUDED.timeline_at, EXCLUDED.backfill,

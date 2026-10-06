@@ -68,7 +68,11 @@ const scoreCall = (model: string) => SCORE_CALL[model] ?? { temperature: 0.2, ma
 /** The score prompt: the industry's taste (industry/prompts/selection-score.md). */
 export const SCORE_SYSTEM = promptText("selection-score");
 
-export const ScoreSchema = z.object({ attentionScore: z.coerce.number().int().min(0).max(100) });
+export const ScoreSchema = z.object({
+  attentionScore: z.coerce.number().int().min(0).max(100),
+  signal: z.boolean().catch(false),
+  signalReason: z.string().max(120).catch(""),
+});
 
 const SCORE_TIME = new Intl.DateTimeFormat("sv-SE", {
   timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
@@ -156,7 +160,7 @@ export interface AnalysisRun {
    * The independent score calls and the tier threshold they are held against; absent when the material
    * is not scored. `refused`: the model's content filter declined it, so it is not selected.
    */
-  scores: { model: string; threshold: number; values: number[]; receiptIds: number[]; reused: boolean; refused?: boolean } | null;
+  scores: { model: string; threshold: number; values: number[]; receiptIds: number[]; reused: boolean; refused?: boolean; signal: boolean; signalReason: string } | null;
   /** The reader-facing copy: `understand` (selected, near-selected), `summarize`, `verbatim` (a Chinese short post), `none`. */
   writing: {
     kind: "understand" | "summarize" | "verbatim" | "none";
@@ -218,6 +222,10 @@ async function runScores(a: AnalyzeInputArticle, threshold: number, opts: StepOp
   const values: number[] = [];
   const receiptIds: number[] = [];
   let reused = true;
+  // The second call reuses the provider's cached prompt, so the signal answer, when answered, is the
+  // same for both; absent it defaults to false (a refused call is never a signal).
+  let signal = false;
+  let signalReason = "";
   // One after the other: the second call reuses the provider's cached prompt.
   for (let i = 0; i < SCORE_CALLS; i++) {
     checkAnalysisRunning();
@@ -231,13 +239,15 @@ async function runScores(a: AnalyzeInputArticle, threshold: number, opts: StepOp
       values.push(res.data.attentionScore);
       receiptIds.push(res.receiptId);
       reused &&= res.reused;
+      signal = res.data.signal;
+      signalReason = res.data.signalReason;
     } catch (error) {
       // The model's content filter declines the material (Zhipu 1301): not scored, so not selected.
-      if (isContentFilter(error)) return { model, threshold, values, receiptIds, reused: false, refused: true };
+      if (isContentFilter(error)) return { model, threshold, values, receiptIds, reused: false, refused: true, signal: false, signalReason: "" };
       throw error;
     }
   }
-  return { model, threshold, values, receiptIds, reused };
+  return { model, threshold, values, receiptIds, reused, signal, signalReason };
 }
 
 async function runStructure(a: AnalyzeInputArticle, opts: StepOpts): Promise<NonNullable<AnalysisRun["structure"]>> {
@@ -378,6 +388,10 @@ export function normalizeAnalysis(run: AnalysisRun) {
   const score = sum === null ? null : Math.floor(sum / SCORE_CALLS);
   const threshold = run.scores?.threshold ?? null;
   const selected = relevance === "pass" && sum !== null && threshold !== null && sum >= threshold * SCORE_CALLS;
+  // The signal gate travels with the judgment (false when refused or unscored). Selected stays the
+  // single-item absolute-threshold meaning here; the relative winner is decided by selection.rank.
+  const signal = run.scores?.signal ?? false;
+  const signalReason = run.scores?.signalReason ?? "";
   const subjects = run.structure?.subjects ?? [];
   const tags = [...(run.writing?.tags ?? run.structure?.tags ?? [])];
   for (const s of subjects) {
@@ -387,6 +401,8 @@ export function normalizeAnalysis(run: AnalysisRun) {
   return {
     relevance,
     selected,
+    signal,
+    signalReason,
     score,
     scores: values,
     scoreModel: run.scores?.model ?? null,
@@ -439,10 +455,10 @@ export async function analyzeArticle(articleId: string, opts: StepOpts = {}): Pr
     const stale = !current || current.revision !== input.revision;
     const [row] = await tx<{ id: number }[]>`
       INSERT INTO analyses (article_id, input_revision, origin, model, prompt_version, receipt_ids, relevance, category, tags,
-        subjects, title_zh, summary_zh, reason_zh, score, selected, output)
+        subjects, title_zh, summary_zh, reason_zh, score, selected, signal, output)
       VALUES (${articleId}, ${input.revision}, 'model', ${w?.model ?? run.prefilter.model}, ${ANALYZE_PROMPT_VERSION}, ${receiptIds},
         ${out.relevance}, ${out.category}, ${out.tags}, ${out.subjects}, ${out.titleZh}, ${out.summaryZh}, ${out.reasonZh},
-        ${out.score}, ${out.selected}, ${tx.json(detail as never)})
+        ${out.score}, ${out.selected}, ${out.signal}, ${tx.json(detail as never)})
       RETURNING id`;
     for (const id of receiptIds) await completeReceipt(tx, id);
     if (!stale) {
