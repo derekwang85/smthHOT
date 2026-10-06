@@ -48,6 +48,39 @@
 - **结构约束（已审计）**：`industry/tsconfig.json` 是 `extends: "../tsconfig.base.json"`，依赖主仓根 tsconfig。故 profile 仓**必须挂回主仓路径 `smthHOT/industry/` 才能解析/编译**，脱离开无法 standalone typecheck。按需决定是否让 profile 仓自洽（需在仓内加独立 tsconfig.base.json）。
 - `industry/` 现含 51 文件 / 280K，全部被 `main` 追踪，无 git user.name/email（commit 需 env identity）。
 
+## 会话交接快照（2026-10-06 · fulltest 内化 + 首页改版已交付）
+
+> 新会话启动先读本节 + 上方 LL-001/ADR-001，即可恢复上下文，无需重复调研。
+
+### 本会话已交付（3 个 commit）
+1. **主仓 `035deaa`** — fulltest 内化底座：`scripts/fulltest-{runner,evolve,auto-loop,cron-worker,pattern-feed}.py/.sh` + `scripts/test-fail-to-issue.py` + `tests/failure-patterns.json`（seed R0-SAMPLE 40 条）+ `tests/fulltest-config.json` + `scripts/fulltest-node-runner.sh`；`.gitignore` 加 fulltest 运行产物；`project_memory` LL-001。
+2. **主仓 `196c738`** — 首页改版：新增今日影响读取层 `packages/backend/publication/impact.ts`、`/impact` 独立页、`TodayImpact` 组件（无内容也渲染空态框架）、品种罗盘从精选移入今日影响、FeedItem 双时间戳（首发 vs 原文）、nav/more 入口。
+3. **团队仓 `6e2c892`（已 push 到 origin/main）** — fulltest Node 双栈适配经验 pattern + 既有 HITL v2 修订。
+
+### fulltest 复现 / 使用命令
+```bash
+export PATH="$HOME/.nvm/versions/node/v24.15.0/bin:$PATH"
+export DATABASE_URL="postgres://test:test@127.0.0.1:5432/smthhot_test"   # 空库，先 migrate
+node scripts/migrate.ts
+# 全量质量门禁（typecheck + node --test junit），供 fulltest-evolve 消费
+PROJECT_ROOT=/media/cbnb/_opdata/smthHOT bash scripts/fulltest-node-runner.sh
+# 自进化：喂已知失败模式 / 未知失败记录
+python3 scripts/fulltest-evolve.py --passes N --failures M --issues '[{...}]'
+python3 scripts/pattern-feed.py --source unknown
+```
+注意：测试库 `smthhot_test`（容器 `smthhot-testdb`，postgres:17，端口 5432，用户/密 `test`/`test`）；跑前需空库（规约）。全量 154 用例现已全绿（publication 13/13、typecheck、web build 均过）。
+
+### 待办 / 余留（未做）
+- 主仓仍有一批**既有文件未提交、与本次任务无关**：`docs/commodityHOT-plan.md`、`docs/commodityHOT-strategy-swarm.md`、`industry/`（submodule 状态 m）、`scripts/commodity-data-pilot.ts`、`dispatch/`（含孤立 ux-flow-patterns.json）、`tests/admin-ux-linkage.test.ts`。新会话按需决定是否整理提交。
+- **fulltest 基线尚未正式 store 为「绿基线 R1 对照」**：LL-001 记录了 154P/0F 与 `fulltest-baseline-R1.md`，但那是演示生成，未接入 CI/cron。若需正式守质量，下一步把 `scripts/fulltest-auto-loop.sh` 接进项目 cron 或 CI 触发。
+- **UX 走查（P5）**：前一轮待办的「建立用户使用逻辑 + UX 走查」尚未系统执行。首页今日影响/罗盘改版后建议做一次移动端+桌面端走查。
+
+### 关键约束提醒
+- 不动 `apps/`、`packages/` 之外；行业相关改 `industry/`（submodule，提交到对应 profile 仓而非主仓）。
+- 团队经验回写走 `team-memory/`（独立仓，gitignored from 主仓），资产须过 `.coding-framework/scripts/verify_asset.py`。
+- 四项冻结项改判须严格 HITL（see `team-memory/decisions/commodityhot-holds-hitl.md` v2）。
+- commit 需 env identity：`GIT_AUTHOR_NAME/EMAIL`、`GIT_COMMITTER_NAME/EMAIL`（禁改 git config）。
+
 ## 项目约定
 
 - 项目来源：AIHOT 开源框架 → 改造为大宗商品热点站（先跑有色金属）。
