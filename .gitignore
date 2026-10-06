@@ -20,3 +20,12 @@ team-memory/
 
 # derekcoding-framework 三轨制运行数据（WBS/Issue 归档）
 archives/
+
+# fulltest 运行产物（生成物不入库；源码 assets 随仓追踪）
+tests/.fulltest-junit.xml
+tests/failures-unknown.log
+tests/pattern-candidates.json
+tests/fulltest-baseline-R*.md
+/tmp/fulltest-issues.json
+# fulltest evolve 自动维护的运行状态索引（不入库）
+tests/cases/index.json

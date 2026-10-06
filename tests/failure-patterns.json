@@ -1,0 +1,660 @@
+{
+  "$schema": "https://derekcoding-framework/schemas/failure-patterns.json",
+  "version": "R0-SAMPLE",
+  "updated": "2026-08-13",
+  "description": "Test failure pattern knowledge base for self-evolving fulltest system. SAMPLE: 40 patterns — generic templates + battle-tested patterns from SmartQuant practice (R13), each with L1/L2/L3 3-layer root cause, fix, severity, auto_check. module paths in SmartQuant patterns are original-project references only.",
+  "patterns": [
+    {
+      "id": "FP-001",
+      "name": "API 契约不匹配 — 调用方使用了不存在的类/方法",
+      "regex": "(?i)(ImportError|AttributeError|cannot import name|has no attribute).*",
+      "http_code": null,
+      "root_cause": "L1=调用方引用了不存在的类/方法; L2=未先 Read 确认 API 就凭记忆写代码; L3=违反十诫 I(先读再写)/VII(不信回忆)",
+      "fix": "调用前先 Read 目标模块确认 API 签名；写失败测试验证调用路径",
+      "severity": "HIGH",
+      "module": "跨模块调用",
+      "test_impact": [
+        "单元测试",
+        "集成测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": ""
+    },
+    {
+      "id": "FP-002",
+      "name": "数据状态依赖失败 — 资源已被消费 (409)",
+      "regex": "(?i)(409|already (consumed|used|exists)|conflict).*",
+      "http_code": 409,
+      "root_cause": "L1=重复操作同一数据; L2=测试共享状态未隔离; L3=缺少幂等/状态机设计",
+      "fix": "标记 known_unavoidable=true 不计入回归告警；或增加测试数据隔离",
+      "severity": "MEDIUM",
+      "module": "集成测试",
+      "test_impact": [
+        "UAT",
+        "集成测试"
+      ],
+      "known_unavoidable": "true",
+      "auto_check": ""
+    },
+    {
+      "id": "FP-003",
+      "name": "未使用导入 — ruff F401",
+      "regex": "(?i)F401|unused import|imported but unused",
+      "http_code": null,
+      "root_cause": "L1=ruff F401 告警; L2=导入后未使用; L3=未在提交前跑 lint",
+      "fix": "ruff check --fix 自动移除；提交前必跑 verify-commit.py",
+      "severity": "MEDIUM",
+      "module": "全局",
+      "test_impact": [
+        "lint 检查"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": ""
+    },
+    {
+      "id": "FP-004",
+      "name": "隐性 scipy 依赖 — pandas spearman 相关需要 scipy",
+      "regex": "(?i)(scipy|spearman).*(import|module|not found)",
+      "http_code": null,
+      "root_cause": "L1=ImportError scipy; L2=pd.Series.corr(method='spearman') 隐式依赖 scipy; L3=未声明隐性依赖",
+      "fix": "手动实现 Spearman: a.rank().corr(b.rank(), method='pearson')，避免 scipy 依赖",
+      "severity": "MEDIUM",
+      "module": "strategies/factor_card.py",
+      "test_impact": [
+        "因子卡测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": "tests/test_sim_teaching.py"
+    },
+    {
+      "id": "FP-005",
+      "name": "JSON schema 不匹配 — spec-register.json 结构错误",
+      "regex": "(?i)(KeyError|TypeError|json).*spec.*register|specs.*(not.*list|dict)",
+      "http_code": null,
+      "root_cause": "L1=spec-cli.py 解析失败; L2=specs 字段用 {} 而非 []; L3=数据结构与 CLI 预期不符",
+      "fix": "确保 spec-register.json 格式: {\"version\": 1, \"specs\": []}",
+      "severity": "HIGH",
+      "module": "tasks/specs/spec-register.json",
+      "test_impact": [
+        "Spec 管理测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": ""
+    },
+    {
+      "id": "FP-006",
+      "name": "前端 XSS — innerHTML 插入未转义用户输入",
+      "regex": "(?i)(innerHTML).*(prompt|name|msg|user)",
+      "http_code": null,
+      "root_cause": "L1=newStrategy() 的 prompt 输入直接进 list; L2=renderStratList 用 innerHTML 插入未转义 s.name; L3=toast 用 innerHTML 插入用户可控 msg",
+      "fix": "DOM 插入前统一 escHtml() 转义；toast 改用 textContent 组装",
+      "severity": "HIGH",
+      "module": "docs/smartquant-platform.html (策略管理)",
+      "test_impact": [
+        "安全测试",
+        "前端审计测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": "tests/test_platform_audit.py"
+    },
+    {
+      "id": "FP-007",
+      "name": "前后端 API 契约字段不匹配 — 状态字段名不一致",
+      "regex": "(?i)(configured).*(token_configured|chat_id_configured)|(token_configured).*(configured)",
+      "http_code": null,
+      "root_cause": "L1=前端检查 res.configured; L2=后端返回 token_configured/chat_id_configured; L3=前端从未验证后端真实返回字段",
+      "fix": "前端读取 res.token_configured && res.chat_id_configured，与后端契约对照",
+      "severity": "HIGH",
+      "module": "docs/smartquant-platform.html ↔ scripts/output/telegram_bridge.py",
+      "test_impact": [
+        "集成测试",
+        "前端审计测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": "tests/test_platform_audit.py"
+    },
+    {
+      "id": "FP-008",
+      "name": "CSS 类名当文本显示 — 图标乱码/重叠",
+      "regex": "(?i)(<span class=\"ico\">)\\.[a-z]+</span>",
+      "http_code": null,
+      "root_cause": "L1=nav-item 图标写成了 .hexagon 等类名文本; L2=没有对应 CSS 图标字体，类名被当文字渲染; L3=中英文混排导致视觉重叠乱码",
+      "fix": "图标用 emoji 或真实图标字体；检查 <span class=\"ico\"> 内容不能以 . 开头",
+      "severity": "HIGH",
+      "module": "docs/smartquant-platform.html (侧边栏)",
+      "test_impact": [
+        "前端审计测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": "tests/test_platform_audit.py"
+    },
+    {
+      "id": "FP-009",
+      "name": "事件监听时序错误 — 拖拽后误触发 click",
+      "regex": "(?i)(dragging).*(click)|(mousedown|mousemove|mouseup).*(click)",
+      "http_code": null,
+      "root_cause": "L1=mouseup 已把 dragging 置 false; L2=click 处理器 if(dragging)return 永不生效; L3=每次拖拽松手都误触详情面板",
+      "fix": "用位移阈值判断：mousemove 累计 dragDist，click 时 dragDist>5px 则忽略",
+      "severity": "HIGH",
+      "module": "docs/smartquant-platform.html (架构可视化)",
+      "test_impact": [
+        "前端审计测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": "tests/test_platform_audit.py"
+    },
+    {
+      "id": "FP-010",
+      "name": "正则高亮破坏 DOM — 关键字正则二次替换标签属性",
+      "regex": "(?i)(highlight|class=\"(st|cm|kw)\").*(\\\\b(class|def|import))",
+      "http_code": null,
+      "root_cause": "L1=字符串/注释先被替换成 <span> 标签; L2=关键字正则再匹配 class 等属性名二次替换; L3=DOM 结构被破坏",
+      "fix": "占位符保护：先保护字符串/注释/LLM 行，再做关键字/数字高亮，最后还原",
+      "severity": "HIGH",
+      "module": "docs/smartquant-platform.html (策略编辑器)",
+      "test_impact": [
+        "前端审计测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": "tests/test_platform_audit.py"
+    },
+    {
+      "id": "FP-011",
+      "name": "布尔表达式恒真 — 逻辑失效",
+      "regex": "(?i)\\|\\|true(\\s*;|\\s*$)|(const ok=).*\\|\\|true",
+      "http_code": null,
+      "root_cause": "L1=语法检查表达式末尾 ||true; L2=表达式永远为 true; L3=功能形同虚设",
+      "fix": "去掉 ||true，修正运算符优先级：含 def/class 且不以 'def ' 残缺开头",
+      "severity": "MEDIUM",
+      "module": "docs/smartquant-platform.html (策略编辑器状态栏)",
+      "test_impact": [
+        "前端审计测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": "tests/test_platform_audit.py"
+    },
+    {
+      "id": "FP-012",
+      "name": "DOM 选择器取错元素 — querySelector 只取第一个匹配",
+      "regex": "(?i)(querySelector\\(['\"]\\.[a-z-]+['\"]\\)).*(data-platform|index|\\\\[0\\\\])",
+      "http_code": null,
+      "root_cause": "L1=saveIntegrationConfig 用 querySelector('.integ-card') 只取第一个卡片(飞书); L2=Telegram 配置实际保存无效",
+      "fix": "用 querySelector('.integ-card[data-platform=\"telegram\"]') 精确定位",
+      "severity": "HIGH",
+      "module": "docs/smartquant-platform.html (多端交互)",
+      "test_impact": [
+        "前端审计测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": "tests/test_platform_audit.py"
+    },
+    {
+      "id": "FP-013",
+      "name": "前端集成仅有 mock 无真实后端桥接 — Telegram 交互形同虚设",
+      "regex": "(?i)(telegram|sendMessage).*(mock|dummy|fake)|(no.*backend|no.*bridge|仅.*mock)",
+      "http_code": null,
+      "root_cause": "L1=前端只有硬编码 mock 数据，无真实 HTTP 调用; L2=点击发送测试通知只改 toast 文字，未走网络; L3=用户以为已连接 Telegram，实际消息不会发出",
+      "fix": "创建 telegram_bridge.py 后端桥接服务（http.server, 8771端口）; 前端用 fetch() 调用桥接端点; 桥接用 urllib 直连 Telegram Bot API",
+      "severity": "HIGH",
+      "module": "docs/smartquant-platform.html ↔ scripts/output/telegram_bridge.py",
+      "test_impact": [
+        "集成测试",
+        "前端审计测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": "tests/test_platform_audit.py"
+    },
+    {
+      "id": "FP-014",
+      "name": "环境变量未配置 — 桥接服务启动正常但无法发消息",
+      "regex": "(?i)(TELEGRAM_BOT_TOKEN|TELEGRAM_CHAT_ID).*(empty|not.*set|missing|unconfigured)",
+      "http_code": 400,
+      "root_cause": "L1=桥接服务依赖 TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID 环境变量; L2=未配置时 get_token() 返回空字符串; L3=sendMessage 返回 400 'TELEGRAM_BOT_TOKEN 未配置'",
+      "fix": "创建 .env 文件或通过启动命令传入环境变量; 前端状态检查显示 '未配置 Token' 琥珀色告警",
+      "severity": "MEDIUM",
+      "module": "scripts/output/telegram_bridge.py",
+      "test_impact": [
+        "集成测试",
+        "配置测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": ""
+    },
+    {
+      "id": "FP-015",
+      "name": "国内网络访问 Telegram API 被墙 — 需代理",
+      "regex": "(?i)(Network is unreachable|Errno 101|TimeoutError).*(telegram|api.telegram)",
+      "http_code": null,
+      "root_cause": "L1=中国大陆网络无法直连 api.telegram.org; L2=urllib 默认无代理，urlopen 报 Errno 101 Network unreachable; L3=需配置 HTTP/SOCKS 代理",
+      "fix": "桥接服务支持 TELEGRAM_PROXY 环境变量，用 ProxyHandler 构建 opener; 代理如 http://127.0.0.1:7897",
+      "severity": "HIGH",
+      "module": "scripts/output/telegram_bridge.py",
+      "test_impact": [
+        "集成测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": ""
+    },
+    {
+      "id": "FP-016",
+      "name": "Telegram Bot Token 无效 — HTTP 401 Unauthorized",
+      "regex": "(?i)(401|Unauthorized).*(bot|telegram)",
+      "http_code": 401,
+      "root_cause": "L1=Bot Token 拼写错误（如 0/O 混淆）; L2=@BotFather 生成的 Token 未正确复制; L3=getMe 返回 HTTP 401 Unauthorized",
+      "fix": "从 @BotFather → /mybots → API Token 复制准确 Token; 用 getMe 验证后再配置; 注意 0(零) 与 O(字母) 区分",
+      "severity": "HIGH",
+      "module": "scripts/output/telegram_bridge.py",
+      "test_impact": [
+        "集成测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": ""
+    },
+    {
+      "id": "FP-017",
+      "name": "意图解析误触 — data_query 过宽匹配非量化查询（如天气）",
+      "regex": "(?i)(data_query|intent.*data_query).*(天气|weather|新闻|stock|news)",
+      "http_code": null,
+      "root_cause": "L1=INTENT_PATTERNS 中 data_query 包含\"今天\"关键词; L2=中文\"今天\"常见于非量化查询; L3=贪婪匹配导致\"今天天气怎么样\"被错误归类",
+      "fix": "data_query 正则将\"今天\"移入更严格的后置子句: 今天.*(价格?|行情|多少)，而非前置关键词",
+      "severity": "MEDIUM",
+      "module": "scripts/output/telegram_bot.py (INTENT_PATTERNS)",
+      "test_impact": [
+        "意图解析测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": "tests/test_p4_telegram_bot.py::test_parse_unknown"
+    },
+    {
+      "id": "FP-018",
+      "name": "意图解析漏匹配 — factor_search 不支持\"XX有哪些因子\"句式",
+      "regex": "(?i)factor_search.*(unknown|not matched)|有哪些.*因子.*(unknown)",
+      "http_code": null,
+      "root_cause": "L1=factor_search 正则只支持\"因子+有哪些\"顺序; L2=未覆盖\"品种+有哪些+因子\"自然语序; L3=中文语序与正则结构不一致",
+      "fix": "factor_search 正则增加\"有哪些.*(因子|指标)\"分支，覆盖自然语序",
+      "severity": "MEDIUM",
+      "module": "scripts/output/telegram_bot.py (INTENT_PATTERNS)",
+      "test_impact": [
+        "意图解析测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": "tests/test_p4_telegram_bot.py::test_parse_factor_search_with_symbol"
+    },
+    {
+      "id": "FP-019",
+      "name": "期货代码提取失败 — \\b 边界在中文前失效",
+      "regex": "(?i)(symbol.*None|extract.*symbol).*(RB|TA|MA|CU|AL|AU)",
+      "http_code": null,
+      "root_cause": "L1=re.search(r\"\\b(RB|...)\\b\") 中 \\b 匹配ASCII词边界; L2=中文字符不属于\\w范围，汉字前\\b不生效; L3=\"RB现在\"中RB后跟汉字，\\b无法匹配",
+      "fix": "改用lookahead/lookbehind: (?<![A-Z])(RB|...)(?![A-Z0-9])，绕过中文边界问题",
+      "severity": "MEDIUM",
+      "module": "scripts/output/telegram_bot.py (parse_intent)",
+      "test_impact": [
+        "意图解析测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": "tests/test_p4_telegram_bot.py::test_parse_direct_futures_code"
+    },
+    {
+      "id": "FP-020",
+      "name": "venv 隔离缺失 — PEP 668 阻断系统级 pip install",
+      "regex": "(?i)(externally-managed|PEP 668|pip install.*error).*(venv|virtualenv|site-packages)",
+      "http_code": null,
+      "root_cause": "L1=Debian/Ubuntu 22.04+ 启用 PEP 668; L2=系统 Python 拒绝 pip install; L3=未使用虚拟环境导致依赖安装失败",
+      "fix": "python3 -m venv .venv && .venv/bin/pip install -r requirements.txt; 所有测试用 .venv/bin/python -m pytest",
+      "severity": "HIGH",
+      "module": "项目根目录",
+      "test_impact": [
+        "所有测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": ""
+    },
+    {
+      "id": "FP-021",
+      "name": "React TypeScript 未使用导入 — TS6133 编译失败",
+      "regex": "(?i)(TS6133|declared but never read|unused.*import).*(tsx|ts)",
+      "http_code": null,
+      "root_cause": "L1=TypeScript strict 模式下未使用的导入报 TS6133 错误; L2=编写组件时引入了后来删除功能的导入; L3=未在写完后检查 imports",
+      "fix": "删除未使用导入；使用 ESLint no-unused-vars 或 ruff F401 等效规则在提交前检查",
+      "severity": "MEDIUM",
+      "module": "frontend/src/",
+      "test_impact": [
+        "前端构建测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": ""
+    },
+    {
+      "id": "FP-022",
+      "name": "日期过滤午夜截断 — end 日期被当作 00:00:00 导致当天数据丢失",
+      "regex": "(?i)(过滤后.*rows=0|date.*filter.*empty|trades.*过滤后为空).*2024",
+      "http_code": null,
+      "root_cause": "L1=df[(df.ts >= start) & (df.ts <= end)] 中 end='2024-01-03' 被解析为 2024-01-03 00:00:00; L2=当天 01:00 后的数据全部被排除; L3=日期字符串到 datetime 的隐式转换未考虑时分秒",
+      "fix": "end 日期补齐到当天 23:59:59: end_inclusive = pd.to_datetime(end) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)",
+      "severity": "HIGH",
+      "module": "scripts/data_hub/connectors/prediction_market/polymarket_connector.py",
+      "test_impact": [
+        "预测市场 e2e 测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": "tests/test_polymarket_e2e.py::test_e2e_trades_to_ohlc_full_chain"
+    },
+    {
+      "id": "FP-023",
+      "name": "时区不匹配 — timezone-aware datetime 与 naive Timestamp 比较抛 TypeError",
+      "regex": "(?i)(TypeError|Invalid comparison).*(datetime64|UTC|Timestamp|timezone)",
+      "http_code": null,
+      "root_cause": "L1=trades 的 ts 列为 datetime64[us, UTC]（从 ISO Z 字符串解析）; L2=pd.to_datetime(start) 默认生成 naive Timestamp; L3=timezone-aware 与 naive 比较直接抛 TypeError 而非隐式转换",
+      "fix": "比较前统一时区: pd.to_datetime(start, utc=True) 确保 naive 字符串转为 UTC-aware",
+      "severity": "HIGH",
+      "module": "scripts/data_hub/connectors/prediction_market/polymarket_connector.py",
+      "test_impact": [
+        "预测市场 e2e 测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": "tests/test_polymarket_e2e.py::test_e2e_trades_raw_full_chain"
+    },
+    {
+      "id": "FP-024",
+      "name": "CORS 白名单遗漏 — 前端开发端口未放行导致误报「Bot未配置」",
+      "regex": "(?i)(CORS|Access-Control-Allow-Origin|Blocked by CORS).*(5174|origin)",
+      "http_code": 403,
+      "root_cause": "L1=前端 status 请求被 CORS 拦截（Origin http://localhost:5174 不在白名单）; L2=前端 .catch 兜底为 {token:false, chat:false} 显示误导性「Bot未配置」; L3=桥接 CORS_ORIGINS 只含 8770/null，未随前端 dev 端口扩展，且失败兜底掩盖了真实原因",
+      "fix": "CORS_ORIGINS 增加前端 dev 端口(5174)；前端 catch 分支需区分「网络错误」与「HTTP 错误」，网络错误时展示连接失败而非配置未就绪",
+      "severity": "HIGH",
+      "module": "scripts/output/telegram_bridge.py ↔ frontend/src/pages/TelegramPage.tsx",
+      "test_impact": [
+        "平台审计测试",
+        "前端集成测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": "tests/test_platform_audit.py::test_telegram_bridge_cors_includes_frontend"
+    },
+    {
+      "id": "FP-025",
+      "name": "SSE 流测试用固定字节数读取 — 连接保持打开导致阻塞超时",
+      "regex": "(?i)(sse|text/event-stream).*(read\\(\\d+\\)|timeout|TimedOut)",
+      "http_code": null,
+      "root_cause": "L1=urllib.request 读 SSE 流用 r.read(64) 固定字节数; L2=endpoint 事件仅 ~34 字节，SSE 连接保持打开不再发新事件; L3=read(64) 阻塞至 socket timeout 抛 TimeoutError，测试失败（与服务器无关）",
+      "fix": "SSE 流测试用 r.readline() 逐行读取首事件（event: endpoint / data: /messages），行读取立即返回不阻塞",
+      "severity": "HIGH",
+      "module": "tests/test_mcp_server.py (SSE 测试)",
+      "test_impact": [
+        "MCP SSE 协议测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": "tests/test_mcp_server.py::test_tc121_sse_mode_health_and_endpoint"
+    },
+    {
+      "id": "FP-026",
+      "name": "monkeypatch 实例方法绑定 self — 普通函数缺 self 参数报 TypeError",
+      "regex": "(?i)(takes 0 positional arguments but 1 was given|monkeypatch.*bound).*(self|bound method)",
+      "http_code": null,
+      "root_cause": "L1=monkeypatch.setattr 把普通函数 boom(**kw) 设为类属性; L2=经实例访问 self.biz.get_positions 时 Python 绑定 self 位置传入; L3=boom 不接受位置参数 → TypeError \"takes 0 positional but 1 given\" 被 invoke 捕获转成业务错误码",
+      "fix": "替换函数必须带 self 参数: def boom(self, **kw)，否则实例绑定后 self 位置传入抛 TypeError",
+      "severity": "MEDIUM",
+      "module": "tests/test_mcp_server.py (monkeypatch 场景)",
+      "test_impact": [
+        "单元测试",
+        "mock 测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": "tests/test_mcp_server.py::test_tc124_internal_error_no_stack"
+    },
+    {
+      "id": "FP-027",
+      "name": "测试 fixture 共享单实例 DB — 一方 close 后另一方拿到已关闭连接",
+      "regex": "(?i)(Cannot operate on a closed database|closed database|ProgrammingError).*(fixture|db)",
+      "http_code": null,
+      "root_cause": "L1=fixture monkeypatch 使每次 DecisionDB(...) 构造返回同一实例; L2=内部方法 _sim_positions 在 finally 中 db.close(); L3=后续 save_order 对同一实例操作 → 已关闭连接 ProgrammingError → 误报业务内部错误",
+      "fix": "fixture 每次构造返回独立连接（同文件共享数据）: _FakeDB.__new__ 返回捕获的真实类 RealCls(db_path) 新实例，防 close 竞态",
+      "severity": "MEDIUM",
+      "module": "tests/test_mcp_server.py (fake_decision_db fixture)",
+      "test_impact": [
+        "单元测试",
+        "DB 相关测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": "tests/test_mcp_server.py::test_tc115b_token_reuse_rejected"
+    },
+    {
+      "id": "FP-028",
+      "name": "数据模型字段类型漂移 — 适配层按旧类型解析导致运行时错误",
+      "regex": "(?i)(float\\(\\).*str|str.*float|could not convert string).*(confidence|score)",
+      "http_code": null,
+      "root_cause": "L1=数据层字段类型变更（confidence 数值→字符串 HIGH/MED/LOW）; L2=适配层仍调用 float(s.confidence) 报 ValueError; L3=字段类型变更未做涟漪扫描（十诫 III）适配层未同步",
+      "fix": "字段类型变更须同步扫描所有消费方；字符串枚举用映射表（HIGH=0.9/MED=0.7/LOW=0.3）判定阈值，不直接 float()",
+      "severity": "HIGH",
+      "module": "scripts/output/mcp/biz_adapter.py ↔ scripts/knowledge/commodity_knowledge.py",
+      "test_impact": [
+        "MCP 工具测试",
+        "契约测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": "tests/test_mcp_server.py::test_tc107_list_signals_gate_status"
+    },
+    {
+      "id": "FP-029",
+      "name": "LLM 提供商切换时测试环境变量遗漏 — 业务代码切到新 KEY 但测试仍 setenv 旧 KEY",
+      "regex": "(?i)(llm_stale|fallback|降级).*assert|monkeypatch\\.setenv.*(OPENAI|DEEPSEEK|MOONSHOT).*KEY",
+      "http_code": null,
+      "root_cause": "L1=测试断言 llm_stale is False 失败（实际为 True）; L2=业务代码已切换到新提供商 KEY（如 DEEPSEEK_API_KEY），测试仍 monkeypatch.setenv 旧 KEY（如 OPENAI_API_KEY）; L3=切换 LLM 提供商时未做涟漪扫描（十诫 III），测试套件未同步",
+      "fix": "切换 LLM 提供商时全局 grep 旧 KEY 环境变量名；测试 monkeypatch.setenv/delenv 必须与业务代码读取的环境变量同名；防御测试可断言多 provider KEY 互斥关系",
+      "severity": "HIGH",
+      "module": "tests/knowledge/test_cross_source_research.py ↔ scripts/knowledge/ai_judge.py ↔ scripts/output/telegram_bot.py",
+      "test_impact": [
+        "LLM 相关测试",
+        "跨源研究测试",
+        "Telegram Bot 测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": "tests/knowledge/test_cross_source_research.py::test_k03_010_ai_judge_verification_and_score_unchanged"
+    },
+    {
+      "id": "FP-030",
+      "name": "Medallion Parquet 读写依赖 pyarrow 缺失 — is_available 检查存在但未实际安装",
+      "regex": "(?i)(ModuleNotFoundError|ImportError).*pyarrow|parquet.*not.*available|No module named 'pyarrow'",
+      "http_code": null,
+      "root_cause": "L1=ImportError pyarrow; L2=Medallion Bronze/Silver/Gold 层读写 Parquet 隐式依赖 pyarrow，原项目 is_available 仅检查不安装; L3=依赖管理只声明不强制安装",
+      "fix": "pyarrow 必须在 requirements.txt 显式声明且 .venv 实际安装；测试 preconditions 标注 'pyarrow 已安装'；首次运行 install_check 验证",
+      "severity": "HIGH",
+      "module": "scripts/data_hub/medallion/*.py",
+      "test_impact": [
+        "Medallion 数据湖测试",
+        "数据版本化测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": "tests/data_hub/test_medallion.py"
+    },
+    {
+      "id": "FP-031",
+      "name": "matplotlib 图表生成在无显示环境失败 — 未切换 Agg backend 抛 RuntimeError",
+      "regex": "(?i)(RuntimeError|matplotlib).*Tkinter|no.*display|cannot connect to X server|Agg.*backend",
+      "http_code": null,
+      "root_cause": "L1=matplotlib 默认 TkAgg backend 需 X server; L2=服务器/容器无 DISPLAY 环境变量; L3=生成图表时报 RuntimeError could not connect to display",
+      "fix": "图表生成函数首行 matplotlib.use('Agg') 强制无显示 backend（在 import pyplot 之前）；测试直接断言 PNG 魔数 \\x89PNG 不依赖显示",
+      "severity": "MEDIUM",
+      "module": "scripts/output/telegram_bot.py (_generate_equity_chart/_generate_signal_chart/_generate_factor_ic_chart)",
+      "test_impact": [
+        "P9 Telegram 图表推送测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": "tests/test_output_telegram_p9.py::TestO06InlineKeyboard::test_o06_generate_equity_chart_returns_png_bytes"
+    },
+    {
+      "id": "FP-032",
+      "name": "ConversationStore 测试污染生产 data/conversations.db — 未用 tmp_path 隔离",
+      "regex": "(?i)(data/conversations\\.db|operationalerror|database is locked|fixture.*tmp_path).*(conversation|conv)",
+      "http_code": null,
+      "root_cause": "L1=ConversationStore 默认 db_path=data/conversations.db; L2=测试未传 tmp_path 也未 setenv CONVERSATIONS_DB; L3=测试数据写入生产 DB，后续运行 database is locked 或脏数据",
+      "fix": "测试必须 monkeypatch.setenv('CONVERSATIONS_DB', str(tmp_path/'conv.db')) 或直接传 db_path 参数；ConversationStore 支持 env 覆盖路径",
+      "severity": "HIGH",
+      "module": "tests/test_output_telegram_p9.py (O09 测试) ↔ scripts/output/conversation_store.py",
+      "test_impact": [
+        "P9 上下文记忆对话测试",
+        "持久化模块测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": "tests/test_output_telegram_p9.py::TestO09ConversationStore::test_o09_add_and_get_recent"
+    },
+    {
+      "id": "FP-033",
+      "name": "Ollama fallback 测试 urlopen monkeypatch 错误对象 — _ollama_chat 用 urllib.request.urlopen 不是 opener.open",
+      "regex": "(?i)(Network is unreachable|Errno 101|URLError).*(ollama|_ollama_chat|11434)",
+      "http_code": null,
+      "root_cause": "L1=test monkeypatch urllib.request.build_opener 但 _ollama_chat 直接调 urllib.request.urlopen; L2=monkeypatch 点与实际调用 API 不匹配; L3=测试仍走真实网络，Ollama 未运行时报 Errno 101 Network is unreachable",
+      "fix": "monkeypatch 前先 Read 源码确认调用点（_send_photo 用 build_opener().open()，_ollama_chat 用 urlopen()）；按实际 API 选择 monkeypatch 点",
+      "severity": "MEDIUM",
+      "module": "tests/test_output_telegram_p9.py (O08 测试) ↔ scripts/output/telegram_bot.py",
+      "test_impact": [
+        "Ollama fallback 测试",
+        "网络 mock 测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": "tests/test_output_telegram_p9.py::TestO08OllamaAndAlerts::test_o08_ollama_chat_success"
+    },
+    {
+      "id": "FP-034",
+      "name": "商业库 rqdatac 未安装 — RiceQuant 客户端需付费 license，本地环境通常缺失",
+      "regex": "(?i)(ModuleNotFoundError|No module named).*rqdatac|安装失败的包.*rqdatac",
+      "http_code": null,
+      "root_cause": "L1=ImportError rqdatac; L2=米筐 RiceQuant 客户端库需付费 license，本地/CI 环境通常不安装; L3=install_check 把商业库与开源库同等强制要求致测试失败",
+      "fix": "install_check.py 增加 optional 字段，rqdatac 标记 optional=True；测试允许 optional 包失败但不报错（warn）；运行时通过 RiceQuantConnector.is_available() 降级到 akshare（已有降级机制）",
+      "severity": "LOW",
+      "module": "scripts/data_hub/install_check.py",
+      "test_impact": [
+        "数据栈安装验证测试"
+      ],
+      "known_unavoidable": "true",
+      "auto_check": "tests/test_data_stack.py::test_install_check_module"
+    },
+    {
+      "id": "FP-035",
+      "name": "前后端契约漂移 — Pydantic 默默丢弃前端扩展字段",
+      "regex": "(?i)template|params|signal_sources|extra.*field.*ignored|pydantic.*extra",
+      "http_code": null,
+      "root_cause": "L1=前端 TypeScript interface 扩展了字段（template/params/signal_sources）但后端 Pydantic BaseModel 未同步; L2=Pydantic 默认 ignore extra fields，静默丢失; L3=违反十诫 III(涟漪必检) + FP-013 字段漂移教训未根治",
+      "fix": "后端 CreateStrategyInput 同步加字段；扩展字段持久化到 extra_meta JSON 列；frontend-contract.md 契约同步更新；test_api_contract.py 加字段漂移检测",
+      "severity": "HIGH",
+      "module": "scripts/api/app.py + frontend/src/api/client.ts",
+      "test_impact": [
+        "API 契约测试",
+        "策略创建测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": "tests/test_api_contract.py"
+    },
+    {
+      "id": "FP-036",
+      "name": "静默吞异常 — except Exception: pass 无日志无 stale_reason",
+      "regex": "(?i)except\\s+Exception\\s*:|except.*:\\s*pass\\s*#|stale_reason.*missing",
+      "http_code": null,
+      "root_cause": "L1=except Exception: pass 静默吞异常; L2=降级 mock 时未记录失败原因; L3=违反 fail-loud 红线（PRD §4.2 + 宪章第二章），ARCH-01 质量元数据一等化未落实",
+      "fix": "except 块记录异常信息到变量；降级响应加 stale_reason 字段标注失败原因；前端识别 stale_reason 显示降级提示",
+      "severity": "HIGH",
+      "module": "scripts/api/app.py (market_kline) + 任何降级路径",
+      "test_impact": [
+        "API 测试",
+        "降级验证测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": "tests/test_frontend_p7_features.py"
+    },
+    {
+      "id": "FP-037",
+      "name": "生产路径用 mock 触发假预警 — _mock_* 函数在预警/通知链路中被调用",
+      "regex": "(?i)_mock_|mock_price|mock_signal|mock.*alert|mock.*push",
+      "http_code": null,
+      "root_cause": "L1=生产预警路径调用 _mock_price/_mock_signal_score 生成假数据; L2=mock 函数返回确定性哈希值，触发假 Telegram 预警推送给用户; L3=违反 fail-loud 红线，mock 仅限测试/无网环境且必须标注 source/confidence",
+      "fix": "删除生产路径的 mock 调用；接入真实数据源（RiceQuantConnector/CommodityKnowledgeBase）；数据源不可用时返回 None 跳过推送并打日志",
+      "severity": "HIGH",
+      "module": "scripts/output/telegram_bot.py + 任何预警/通知模块",
+      "test_impact": [
+        "Telegram bot 测试",
+        "预警订阅测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": "tests/test_p4_telegram_bot.py"
+    },
+    {
+      "id": "FP-038",
+      "name": "方法论占位未标注近似性 — mock 矩阵/占位返回值未标记估算性质",
+      "regex": "(?i)mock_matrix|approx|placeholder.*return|p_model.*=.*0|pbo.*mock",
+      "http_code": null,
+      "root_cause": "L1=方法论占位（PBO mock 矩阵/p_model 返回 0）未标注近似性; L2=上层门禁/信号判定把近似值当精确值用; L3=违反认知纪律（置信度标注），G2 门禁可能被误导",
+      "fix": "占位返回值加 *_approx 标记字段；异常/stale 路径返回 None 让上层跳过而非返回 0；ASSUMPTION 注释说明估算性质",
+      "severity": "MEDIUM",
+      "module": "scripts/backtest/overfitting_checks.py + scripts/analytics/edge_percent.py",
+      "test_impact": [
+        "过拟合检验测试",
+        "edge_percent 测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": "tests/backtest/test_overfitting_checks.py"
+    },
+    {
+      "id": "FP-039",
+      "name": "三通道共用入口漏传 entry 参数 — Telegram/MCP/REST 共用 serve 核心但调用方未显式标注入口",
+      "regex": "(?i)run_agent_auto\\(\\s*prompt\\s*\\)|run_agent_auto\\(prompt\\)\\s*$|entry.*telegram.*rest|entry.*missing",
+      "http_code": null,
+      "root_cause": "L1=Telegram agent_run 调用 run_agent_auto(prompt) 未传 entry，落入默认 rest; L2=serve.py 三通道共用但无契约层强制入口参数，REST 恰好与默认值一致掩盖了问题（MCP 显式传了 entry=mcp）; L3=落库 input_hash 含 entry，入口漂移导致可复现契约失真 + 前端 AgentCenter 入口标识错误",
+      "fix": "调用方显式传 entry（telegram_bot: entry='telegram'）；契约测试 monkeypatch serve.run_agent_auto 断言 entry 传递；persist 层测试断言落库 entry 列",
+      "severity": "MEDIUM",
+      "module": "scripts/output/telegram_bot.py (_handle_agent_run) + scripts/agents/serve.py + scripts/agents/persist.py",
+      "test_impact": [
+        "多 Agent 编排测试",
+        "persist 落库测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": "tests/test_agents.py::test_telegram_agent_run_passes_entry"
+    },
+    {
+      "id": "FP-040",
+      "name": "数据科学依赖缺失 — pandas/akshare/yfinance/ccxt 未安装",
+      "regex": "(?i)(ModuleNotFoundError|No module named).*(pandas|akshare|yfinance|ccxt|backtrader|matplotlib|scipy)",
+      "http_code": null,
+      "root_cause": "L1=ImportError; L2=未运行 install_check 即执行; L3=依赖管理未前置",
+      "fix": "运行 scripts/data_hub/install_check.py 检查；.venv/bin/pip install pandas akshare yfinance ccxt backtrader matplotlib",
+      "severity": "HIGH",
+      "module": "scripts/data_hub/",
+      "test_impact": [
+        "数据栈测试",
+        "回测测试"
+      ],
+      "known_unavoidable": "false",
+      "auto_check": "tests/test_data_stack.py"
+    }
+  ],
+  "evolution_rules": {
+    "auto_baseline_update": true,
+    "baseline_version_prefix": "fulltest-baseline-R",
+    "min_improvement_for_update": 1,
+    "regression_alert_threshold": 3,
+    "max_patterns_recorded": 50,
+    "unknown_failure_log": "tests/failures-unknown.log",
+    "description": {
+      "auto_baseline_update": "Automatically increment baseline version when pass rate improves",
+      "baseline_version_prefix": "Format: {prefix}{N}.md, e.g., fulltest-baseline-R1.md",
+      "min_improvement_for_update": "Minimum pass count increase to trigger baseline update",
+      "regression_alert_threshold": "Number of failures in last 5 runs to trigger regression alert",
+      "max_patterns_recorded": "Maximum number of patterns in this file",
+      "unknown_failure_log": "Log file for failures not matching any known pattern"
+    }
+  },
+  "pattern_schema": {
+    "id": "Unique pattern ID, format: FP-NNN",
+    "name": "Human-readable name",
+    "regex": "Python/regex pattern to match failure text (case-insensitive)",
+    "http_code": "Expected HTTP code or null",
+    "root_cause": "3-layer iceberg: L1=symptom, L2=structural cause, L3=design cause",
+    "fix": "Concrete fix instructions",
+    "severity": "CRITICAL | HIGH | MEDIUM | LOW",
+    "module": "affected module",
+    "test_impact": [
+      "list of test suites affected"
+    ],
+    "known_unavoidable": "true if failure is due to data state dependencies (e.g., 409 after consumption)",
+    "auto_check": "path to auto-check script (optional)"
+  }
+}

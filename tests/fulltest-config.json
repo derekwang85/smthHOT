@@ -1,0 +1,24 @@
+{
+  "$schema": "https://derekcoding-framework/schemas/fulltest-config.json",
+  "_description": "CommodityHOT 项目 fulltest 配置 — custom_test 模式（Node/TS 非 Java）。custom_test.command 非空时 runner 跳过 API 登录与 8+1 Suite，直接执行本项目质量门禁并解析 junitxml，失败明细自动衔接 fulltest-evolve 模式匹配。",
+
+  "project": {
+    "name": "CommodityHOT",
+    "backend_type": "node",
+    "frontend_type": "node",
+    "test_types": ["node"]
+  },
+
+  "custom_test": {
+    "command": "PROJECT_ROOT=/media/cbnb/_opdata/smthHOT bash scripts/fulltest-node-runner.sh && npm run build -w @aihot/web",
+    "junit_xml": "/media/cbnb/_opdata/smthHOT/tests/.fulltest-junit.xml",
+    "timeout_s": 900
+  },
+
+  "evolution": {
+    "enabled": true,
+    "issues_file": "/tmp/fulltest-issues.json",
+    "evolve_script": "scripts/fulltest-evolve.py",
+    "failure_patterns": "tests/failure-patterns.json"
+  }
+}
