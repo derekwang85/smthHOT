@@ -249,7 +249,9 @@ def diagnose_run(total_pass, total_fail, issues, suite_results, run_stdout=""):
     if os.path.exists(prev_baseline_file):
         with open(prev_baseline_file) as f:
             content = f.read()
-        m = re.search(r'通过.*?(\d+)', content)
+        # auto_write_baseline 写的是英文 "Pass: NN"；早期版本写过中文 "通过…NN"。
+        # 两者都要能解析，否则 prev_pass 永远为 0 → 每次都被当成改进、基线无限自增。
+        m = re.search(r'(?:通过.*?|Pass:?\s*)(\d+)', content)
         if m:
             prev_pass = int(m.group(1))
             dbg(f"前次基线 {prev_baseline_file} 通过数={prev_pass}")

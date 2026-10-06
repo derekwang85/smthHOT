@@ -26,15 +26,21 @@ echo "  ✅ typecheck 通过"
 echo "━━━ [fulltest-node-runner] 门禁 2/2 — 全量 node --test（junit 采集） ━━━"
 if [[ "$REPORTER" == "spec" ]]; then
   node --test --test-concurrency=1 --test-timeout=120000 "$ROOT/tests/*.test.ts"
+  exit $?  # spec 模式直接透传 node --test 退出码（失败即非零）
 else
   rm -f "$JUNIT_DEST"
+  # 不从 --test 进程吞失败：用它真实的退出码作为测试失败的证据。
+  # junit 只做采集，不参与成败判定，避免 "失败但退出码 0" 使 cron/CI 检测不到回归。
   node --test --test-concurrency=1 --test-timeout=120000 \
     --test-reporter=junit \
     --test-reporter-destination="$JUNIT_DEST" \
-    "$ROOT/tests/*.test.ts" >/dev/null 2>&1 || true
+    "$ROOT/tests/*.test.ts" >/dev/null 2>&1
+  NODE_EXIT=$?
   echo "  junit 汇总: $JUNIT_DEST"
-  # 从 junit 提取 pass/fail 计数供 fulltest/CI 消费（失败由 runner 负责诊断）
+  # 从 junit 提取 pass/fail 计数供 fulltest/CI 消费
   FAIL_BYTES=$(grep -o '<failure' "$JUNIT_DEST" | wc -l) || FAIL_BYTES=0
   TESTCASES=$(grep -o '<testcase' "$JUNIT_DEST" | wc -l) || TESTCASES=0
   echo "  total=$TESTCASES fail=$FAIL_BYTES pass=$((TESTCASES - FAIL_BYTES))"
+  # 门禁以 node --test 真实结果为准；junit 采集异常（0 用例）也判失败（失败安全）。
+  if [ "$NODE_EXIT" -ne 0 ] || [ "$TESTCASES" -eq 0 ]; then exit 1; fi
 fi

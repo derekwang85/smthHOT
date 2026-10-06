@@ -72,6 +72,60 @@ jobs:
         if: failure()
         run: tail -n 60 "$RUNNER_TEMP/api.log" "$RUNNER_TEMP/web.log" 2>/dev/null || true
 
+  # CommodityHOT fulltest 基线守护：把增量的「typecheck + invariant 全量测试」收敛为
+  # 能守绿基线的入口。用专门的 commodityhot_ci 一次性空库（迁移后即测），满足测试
+  # invariant「DATABASE_URL 必须以 *_test / *_ci 结尾」（tests/setup.ts 会拒绝其它库名）。
+  # 失败明细喂给 fulltest-evolve 与基线 R2(154P) 对比，任何失败都以非零退出码让 CI 变红。
+  fulltest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: commodityhot_ci
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 2s --health-timeout 5s --health-retries 30
+    env:
+      DATABASE_URL: postgres://postgres:ci@127.0.0.1:5433/commodityhot_ci
+      SITE_URL: http://127.0.0.1:3000
+      API_BASE_URL: http://127.0.0.1:9666
+      SESSION_SECRET: ci-session-secret-0123456789abcdef
+      IMG_PROXY_SIGN_SECRET: ci-img-secret-0123456789abcdef
+      # 安全阀：CI 不访问任何外部服务
+      COLLECT_ENABLED: "false"
+      MODEL_CALLS_ENABLED: "false"
+      FEISHU_INTERNAL_ENABLED: "false"
+      FEISHU_CONTENT_PUSH_ENABLED: "false"
+      INDEXNOW_SUBMIT_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+      - name: Recreate throwaway database and migrate
+        # 生产 commodityhot 库是运行数据，唯一可写且可通过 invariant 的跑测库是 *_ci 空库。
+        run: node scripts/migrate.ts
+      - name: Run fulltest gate (typecheck + invariant suite)
+        # 与根 package.json `npm test` 同构，junit 采集，失败即非零退出（见 fulltest-node-runner.sh）。
+        run: bash scripts/fulltest-node-runner.sh
+      - name: Compare against R2 baseline (self-evolve)
+        # 解析 junit 真实 pass/fail，交给 fulltest-evolve 与基线对比；任何失败 → 退出码非零。
+        run: |
+          JUNIT="$RUNNER_TEMP/fulltest-junit.xml"
+          # runner 把 junit 写到 tests/.fulltest-junit.xml
+          FAIL_BYTES=$(grep -o '<failure' tests/.fulltest-junit.xml | wc -l)
+          TESTCASES=$(grep -o '<testcase' tests/.fulltest-junit.xml | wc -l)
+          PASS=$((TESTCASES - FAIL_BYTES))
+          echo "fulltest result: pass=$PASS fail=$FAIL_BYTES"
+          python3 scripts/fulltest-evolve.py --passes "$PASS" --failures "$FAIL_BYTES" || { echo "❌ fulltest 基线 R2 (154P) 未守住"; exit 1; }
+
   docker:
     runs-on: ubuntu-latest
     timeout-minutes: 25
