@@ -2530,11 +2530,11 @@
           "links": {
             "type": "object",
             "required": [
-              "aihot",
+              "page",
               "original"
             ],
             "properties": {
-              "aihot": {
+              "page": {
                 "type": "string",
                 "format": "uri"
               },
@@ -2622,10 +2622,10 @@
           "links": {
             "type": "object",
             "required": [
-              "aihot"
+              "page"
             ],
             "properties": {
-              "aihot": {
+              "page": {
                 "type": "string",
                 "format": "uri"
               }
@@ -2812,11 +2812,11 @@
           "links": {
             "type": "object",
             "required": [
-              "aihot",
+              "page",
               "original"
             ],
             "properties": {
-              "aihot": {
+              "page": {
                 "type": "string",
                 "format": "uri"
               },
@@ -2924,10 +2924,10 @@
           "links": {
             "type": "object",
             "required": [
-              "aihot"
+              "page"
             ],
             "properties": {
-              "aihot": {
+              "page": {
                 "type": "string",
                 "format": "uri"
               },
@@ -2960,11 +2960,11 @@
           "links": {
             "type": "object",
             "required": [
-              "aihot",
+              "page",
               "api"
             ],
             "properties": {
-              "aihot": {
+              "page": {
                 "type": "string",
                 "format": "uri"
               },
@@ -3042,10 +3042,10 @@
           "links": {
             "type": "object",
             "required": [
-              "aihot"
+              "page"
             ],
             "properties": {
-              "aihot": {
+              "page": {
                 "type": "string",
                 "format": "uri"
               }
@@ -3142,10 +3142,10 @@
           "links": {
             "type": "object",
             "required": [
-              "aihot"
+              "page"
             ],
             "properties": {
-              "aihot": {
+              "page": {
                 "type": "string",
                 "format": "uri"
               }
@@ -3159,11 +3159,11 @@
       "DailyContentLinks": {
         "type": "object",
         "required": [
-          "aihot",
+          "page",
           "original"
         ],
         "properties": {
-          "aihot": {
+          "page": {
             "type": [
               "string",
               "null"
@@ -3208,10 +3208,10 @@
           "links": {
             "type": "object",
             "required": [
-              "aihot"
+              "page"
             ],
             "properties": {
-              "aihot": {
+              "page": {
                 "type": "string",
                 "format": "uri"
               }

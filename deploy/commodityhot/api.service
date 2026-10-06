@@ -1,0 +1,31 @@
+# commodityhot-api — CommodityHOT 后端 API（非有色金属行业聚合站）
+# 放置到 /etc/systemd/system/commodityhot-api.service 后：
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now commodityhot-api
+# 说明：本单元文件仅提供内容，未经系统管理员/systemctl 启用。
+
+[Unit]
+Description=CommodityHOT API (backend HTTP + admin)
+After=network-online.target postgresql.service
+Wants=network-online.target
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=cbnb
+Group=cbnb
+WorkingDirectory=/media/cbnb/_opdata/smthHOT
+# systemd 会把环境变量注入进程，等价于 node --env-file=.env.commodity apps/api/src/main.ts
+EnvironmentFile=/media/cbnb/_opdata/smthHOT/.env.commodity
+ExecStart=/home/cbnb/.nvm/versions/node/v24.15.0/bin/node apps/api/src/main.ts
+Restart=on-failure
+RestartSec=5
+# 统一把输出写到系统日志目录（与当前 /tmp/commodity-*.log 相比，重启后不丢、可轮转）
+StandardOutput=append:/var/log/commodityhot/api.log
+StandardError=append:/var/log/commodityhot/api.log
+# 停机优雅处理：main.ts 监听 SIGTERM 清理 DB 连接
+TimeoutStopSec=30
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target

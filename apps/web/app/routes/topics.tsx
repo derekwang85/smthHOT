@@ -18,7 +18,7 @@ export async function loader({ request }: { request: Request }) {
 }
 
 export function meta() {
-  return pageMeta({ title: "主题", description: "按公司与模型、技术方向、内容形态聚合的 AI 主题页：OpenAI、Anthropic、Agent、多模态、论文与教程等 38 个方向。", path: "/topics", image: "/og/pages/topics.png" });
+  return pageMeta({ title: "主题", description: "按品种、产业链环节、事件类型聚合的有色金属主题页：铜、铝、铅锌、镍、宏观政策与供需事件等方向。", path: "/topics", image: "/og/pages/topics.png" });
 }
 
 export function headers() {
@@ -26,9 +26,9 @@ export function headers() {
 }
 
 const GROUPS = [
-  { key: "company", name: "公司与模型", blurb: "按厂商与模型系追踪：谁发了什么、又赢了哪一局" },
-  { key: "field", name: "技术方向", blurb: "按技术领域深挖：Agent、多模态、具身智能……" },
-  { key: "genre", name: "内容形态", blurb: "按内容类型浏览：论文、教程、观点、政策……" },
+  { key: "company", name: "产业链环节", blurb: "按环节追踪：矿山、冶炼、贸易、终端需求……" },
+  { key: "field", name: "品种", blurb: "按品种深挖：铜、铝、铅锌、镍、宏观与多品种……" },
+  { key: "genre", name: "事件类型", blurb: "按事件类型浏览：供给扰动、需求、库存、政策、行情……" },
 ] as const;
 
 export default function TopicsPage() {
@@ -36,9 +36,9 @@ export default function TopicsPage() {
   return (
     <div className="pb-10">
       <header className="pb-2 pt-5 lg:pt-1">
-        <h1 className="text-[24px] font-semibold leading-[1.3] text-ink">按主题看 AI</h1>
+        <h1 className="text-[24px] font-semibold leading-[1.3] text-ink">按品种看商品</h1>
         <p className="mt-1.5 text-[13px] leading-relaxed text-ink-3">
-          按公司与模型、技术方向、内容形态浏览 <span className="num">{topics.length}</span> 个主题，持续汇集近期焦点与精选。
+          按品种、产业链环节、事件类型浏览 <span className="num">{topics.length}</span> 个主题，持续汇集近期焦点与精选。
         </p>
       </header>
       {GROUPS.map((g) => (

@@ -279,7 +279,7 @@ export async function v1HotTopics() {
     title: e.title,
     source: { name: e.representativeSource ?? e.sourceNames[0] ?? SITE.name },
     links: {
-      aihot: e.representativeItemId ? itemUrl(e.representativeItemId) : storyUrl(e.storyPublicId),
+      page: e.representativeItemId ? itemUrl(e.representativeItemId) : storyUrl(e.storyPublicId),
       original: e.representativeUrl ?? storyUrl(e.storyPublicId),
       story: storyUrl(e.storyPublicId),
     },
@@ -298,7 +298,7 @@ export async function v1Story(storyId: number) {
   if (!content) return null;
   const { s, reports, developments } = content;
   const latestAt = s.latest_at ?? reports[0]!.at;
-  const neighbors = (await relatedStories(storyId)).map((r) => ({ publicId: r.public_id, title: r.title, relation: r.relation, links: { aihot: storyUrl(r.public_id), api: storyApiUrl(r.public_id) } }));
+  const neighbors = (await relatedStories(storyId)).map((r) => ({ publicId: r.public_id, title: r.title, relation: r.relation, links: { page: storyUrl(r.public_id), api: storyApiUrl(r.public_id) } }));
   return {
     schemaVersion: 1 as const,
     story: {
@@ -312,14 +312,14 @@ export async function v1Story(storyId: number) {
       latest: s.latest ?? developments[0]?.title ?? s.title,
       digest: s.digest,
       digestUpdatedAt: s.digest_updated_at?.toISOString() ?? null,
-      links: { aihot: storyUrl(s.public_id) },
+      links: { page: storyUrl(s.public_id) },
       reports: reports.slice(0, 50).map((r) => ({
         id: r.id,
         title: r.title,
         summary: r.summary,
         source: { name: r.source_name, firstParty: r.first_party },
         publishedAt: r.at.toISOString(),
-        links: { aihot: itemUrl(r.id), original: r.url },
+        links: { page: itemUrl(r.id), original: r.url },
       })),
       storyline: neighbors.filter((n) => n.relation === "storyline"),
       related: neighbors.filter((n) => n.relation === "related"),

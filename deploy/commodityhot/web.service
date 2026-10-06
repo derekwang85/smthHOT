@@ -1,0 +1,28 @@
+# commodityhot-web — CommodityHOT 网页 (SSR，端口 3200，反代 /api 到 api:3002)
+# 放置到 /etc/systemd/system/commodityhot-web.service 后：
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now commodityhot-web
+# 说明：本单元文件仅提供内容，未经系统管理员/systemctl 启用。
+
+[Unit]
+Description=CommodityHOT web (SSR + static + api reverse proxy)
+After=network-online.target commodityhot-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cbnb
+Group=cbnb
+# server.ts 依赖构建产物 apps/web/build/*；部署前需先执行 npm run build -w @aihot/web
+WorkingDirectory=/media/cbnb/_opdata/smthHOT/apps/web
+EnvironmentFile=/media/cbnb/_opdata/smthHOT/.env.commodity
+ExecStart=/home/cbnb/.nvm/versions/node/v24.15.0/bin/node server.ts
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:/var/log/commodityhot/web.log
+StandardError=append:/var/log/commodityhot/web.log
+TimeoutStopSec=30
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target

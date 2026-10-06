@@ -1,0 +1,27 @@
+# commodityhot-worker — CommodityHOT 后台 worker（抓取 + 模型处理 + 定时任务）
+# 放置到 /etc/systemd/system/commodityhot-worker.service 后：
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now commodityhot-worker
+# 说明：本单元文件仅提供内容，未经系统管理员/systemctl 启用。
+
+[Unit]
+Description=CommodityHOT worker (collect / model / scheduled jobs)
+After=network-online.target postgresql.service commodityhot-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cbnb
+Group=cbnb
+WorkingDirectory=/media/cbnb/_opdata/smthHOT
+EnvironmentFile=/media/cbnb/_opdata/smthHOT/.env.commodity
+ExecStart=/home/cbnb/.nvm/versions/node/v24.15.0/bin/node apps/worker/src/main.ts
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:/var/log/commodityhot/worker.log
+StandardError=append:/var/log/commodityhot/worker.log
+TimeoutStopSec=30
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target

@@ -1,6 +1,8 @@
 // Daily, weekly and monthly reports. Windows are Beijing calendar based and written into the report;
 // missed schedule points are caught up; regeneration creates a revision. The editors' prompts are in
-// the industry pack (industry/prompts/report-*.md), the sections follow its categories.
+// the industry pack (industry/prompts/report-*.md). A daily focuses the day's items by event first
+// (a story can span several varieties), then places each event under a variety section; the sections
+// are ordered by the impact of their strongest event, not the fixed category order.
 import { z } from "zod";
 import { SITE } from "@aihot/industry/site";
 import { CATEGORIES } from "@aihot/industry/taxonomy";
@@ -81,6 +83,21 @@ export async function candidates(start: Date, end: Date): Promise<Candidate[]> {
   return [...byFact.values()].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
 }
 
+/**
+ * Group the day's items into events first: several varieties (or several facts of a storyline) can
+ * report on the same story, which is a single event for the reader. Within one story only its
+ * strongest report is kept, then each event represents the item that places it under a variety section.
+ */
+function eventReps(entries: Candidate[]): Candidate[] {
+  const byEvent = new Map<string, Candidate>();
+  for (const c of entries) {
+    const key = c.storyPublicId ?? c.factKey;
+    const prev = byEvent.get(key);
+    if (!prev || Number(c.firstParty) - Number(prev.firstParty) > 0 || (c.firstParty === prev.firstParty && (c.score ?? 0) > (prev.score ?? 0))) byEvent.set(key, c);
+  }
+  return [...byEvent.values()].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+}
+
 /** Facts and items already covered by recent editions are not repeated. */
 async function recentlyCovered(kind: "daily", before: string, days = 7): Promise<Set<string>> {
   const rows = await sql<{ content: Record<string, any> }[]>`
@@ -142,14 +159,20 @@ export async function composeDaily(date: string, reason = "scheduled"): Promise<
   const fresh = all.filter((c) => !covered.has(c.factKey) && !covered.has(`a:${c.itemId}`));
   const perSection = new Map<string, Candidate[]>();
   const flashes: Array<{ itemId: string; title: string; sourceName: string; sourceUrl: string; publishedAt: string }> = [];
-  for (const c of fresh) {
+  for (const c of eventReps(fresh)) {
     const label = SECTION_OF[c.category ?? ""] ?? DEFAULT_SECTION;
     const list = perSection.get(label) ?? [];
     if (list.length < 8) list.push(c);
     else if (flashes.length < 12) flashes.push({ itemId: c.itemId, title: c.title, sourceName: c.sourceName, sourceUrl: c.sourceUrl, publishedAt: c.publishedAt });
     perSection.set(label, list);
   }
-  const sections = SECTION_ORDER.filter((l) => perSection.get(l)?.length).map((label) => ({
+  // The front-page focus leads with the variety whose strongest event matters most, so the sections
+  // are ordered by their top event's impact instead of the fixed category order.
+  const sectionOrder = [...perSection.entries()]
+    .map(([label, list]) => [label, Math.max(...list.map((e) => e.score ?? 0))] as const)
+    .sort((a, b) => b[1] - a[1])
+    .map(([label]) => label);
+  const sections = sectionOrder.map((label) => ({
     label,
     items: perSection.get(label)!.map(({ category: _c, factKey: _f, ...entry }) => entry),
   }));

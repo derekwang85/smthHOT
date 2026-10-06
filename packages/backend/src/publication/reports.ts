@@ -303,7 +303,7 @@ export async function v1Dailies(limit: number) {
       generatedAt: r.generated_at.toISOString(),
       leadTitle: reportHeadline(r.content, "daily", gone),
       leadParagraph: r.content.lead?.leadParagraph ?? null,
-      links: { aihot: url },
+      links: { page: url },
       attribution: attribution(url),
     };
   });
@@ -319,7 +319,7 @@ export async function v1Daily(date: string | "latest") {
   const raw = [...(c.sections ?? []).flatMap((s: any) => s.items ?? []), ...(c.flashes ?? [])];
   const avail = await availability([...new Set(raw.map((i: any) => i.itemId).filter(Boolean))] as string[]);
   const ok = (i: any) => !i.itemId || (avail.get(i.itemId)?.available ?? true);
-  const links = (i: any) => ({ aihot: i.itemId ? itemUrl(i.itemId) : null, original: String(i.sourceUrl ?? "") });
+  const links = (i: any) => ({ page: i.itemId ? itemUrl(i.itemId) : null, original: String(i.sourceUrl ?? "") });
   const url = dailyUrl(r.key);
   return {
     schemaVersion: 1 as const,
@@ -328,7 +328,7 @@ export async function v1Daily(date: string | "latest") {
       generatedAt: r.generated_at.toISOString(),
       windowStart: r.window_start.toISOString(),
       windowEnd: r.window_end.toISOString(),
-      links: { aihot: url },
+      links: { page: url },
       attribution: attribution(url),
       lead: c.lead ? { title: String(c.lead.title), leadParagraph: String(c.lead.leadParagraph) } : null,
       sections: (c.sections ?? []).map((s: any) => ({

@@ -101,7 +101,7 @@ function itemsText(heading: string, res: ItemList): string {
     lines.push(`时间：${it.publishedAt ?? it.discoveredAt}`);
     if (it.summary) lines.push(`摘要：${it.summary}`);
     if (it.reason) lines.push(`推荐理由：${it.reason}`);
-    lines.push(`${SITE.name}：${it.links.aihot}`);
+    lines.push(`${SITE.name}：${it.links.page}`);
     lines.push(`原文：${it.links.original}`);
     lines.push("");
   });
@@ -162,7 +162,7 @@ export function buildMcpServer(): McpServer {
       const lines = [`${SITE.name} 当前热点（${items.length} 个）`, ""];
       for (const t of items) {
         const publicId = t.links.story.split("/").pop();
-        lines.push(`第 ${t.rank} 名：${t.title}`, `信源：${t.sourceNames.join("、")}`, `最新进展：${t.latestAt}`, `${SITE.name}：${t.links.aihot}`, `事件 public_id：${publicId}`, `事件页：${t.links.story}`, "");
+        lines.push(`第 ${t.rank} 名：${t.title}`, `信源：${t.sourceNames.join("、")}`, `最新进展：${t.latestAt}`, `${SITE.name}：${t.links.page}`, `事件 public_id：${publicId}`, `事件页：${t.links.story}`, "");
       }
       return ok(lines.join("\n").trimEnd(), { schemaVersion: 1, count: items.length, items });
     }),
@@ -184,8 +184,8 @@ export function buildMcpServer(): McpServer {
       const lines = [`${SITE.name} 事件：${story.title}`, `状态：${story.status === "active" ? "持续更新" : "历史事件"}｜${story.reportCount} 篇报道｜${story.sourceCount} 个来源`, `最新进展：${story.latest}`];
       if (story.digest) lines.push("", `事件综述：${story.digest}`);
       lines.push("", "报道时间线：");
-      story.reports.forEach((r, i) => lines.push(`${i + 1}. ${r.publishedAt}｜${r.source.name}${r.source.firstParty ? "（一手）" : ""}｜${r.title}｜${r.links.aihot}`));
-      lines.push("", `事件页：${story.links.aihot}`);
+      story.reports.forEach((r, i) => lines.push(`${i + 1}. ${r.publishedAt}｜${r.source.name}${r.source.firstParty ? "（一手）" : ""}｜${r.title}｜${r.links.page}`));
+      lines.push("", `事件页：${story.links.page}`);
       return ok(lines.join("\n"), { schemaVersion: 1, story });
     }),
   );
@@ -206,9 +206,9 @@ export function buildMcpServer(): McpServer {
       if (r.lead) lines.push("", `导语：${r.lead.title}`, r.lead.leadParagraph);
       for (const s of r.sections) {
         lines.push("", `【${s.label}】`);
-        s.items.forEach((it: { title: string; source: { name: string }; summary: string; links: { aihot: string | null; original: string } }, i: number) => lines.push(`${i + 1}. ${it.title}｜${it.source.name}`, `   ${it.summary}`, `   ${SITE.name}：${it.links.aihot ?? it.links.original}`));
+        s.items.forEach((it: { title: string; source: { name: string }; summary: string; links: { page: string | null; original: string } }, i: number) => lines.push(`${i + 1}. ${it.title}｜${it.source.name}`, `   ${it.summary}`, `   ${SITE.name}：${it.links.page ?? it.links.original}`));
       }
-      lines.push("", `日报页：${r.links.aihot}`);
+      lines.push("", `日报页：${r.links.page}`);
       return ok(lines.join("\n"), res);
     }),
   );
