@@ -156,6 +156,15 @@ export async function fetchJsonList(source: SourceRow): Promise<Candidate[]> {
   if (c.itemsObjectValues && items && typeof items === "object" && !Array.isArray(items)) items = Object.values(items);
   if (!Array.isArray(items)) throw new FetchError("items path did not resolve to an array");
 
+  return candidatesFromJsonItems(items, source);
+}
+
+/**
+ * Maps a resolved array of JSON objects into candidates. Shared by fetchJsonList (raw JSON body) and the
+ * web_list "scrolled" path (JSON segments captured from XHR responses), so both sources reuse one rule set.
+ */
+export function candidatesFromJsonItems(items: unknown[], source: SourceRow): Candidate[] {
+  const c = source.config;
   const out: Candidate[] = [];
   for (const item of items) {
     if (c.requireBoolean && getPath(item, c.requireBoolean.path) !== c.requireBoolean.equals) continue;

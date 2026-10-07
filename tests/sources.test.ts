@@ -11,9 +11,11 @@ import { config } from "@aihot/backend/config";
 import { sanitizeBody, trimTrailingChrome } from "@aihot/backend/content/sanitize";
 import { fetchDetail, fetchWebList, fromHtml, fromMarkdown } from "@aihot/backend/sources/web-list";
 import { fetchRss } from "@aihot/backend/sources/rss";
-import { fetchJsonList } from "@aihot/backend/sources/json-list";
+import { fetchJsonList, candidatesFromJsonItems } from "@aihot/backend/sources/json-list";
 import { noiseFiltered } from "@aihot/backend/sources/collect";
 import { unsupportedConfig } from "@aihot/backend/sources/config-keys";
+import { parseJinaText } from "@aihot/backend/providers/jina";
+import { XHR_SEGMENT_SEP } from "@aihot/backend/render/render";
 
 const source = (config: Record<string, unknown>) => ({ id: "test-list", config }) as never;
 
@@ -209,4 +211,54 @@ test("dates in yyyymmdd and in JSON-LD are read", async () => {
   assert.deepEqual(days.map((c) => c.publishedAt?.toISOString() ?? null), ["2026-09-22T00:00:00.000Z", null], "February 30 is no date");
   const got = await fetchDetail(`${site}/ld-post`, { id: "test-feed", config: { detail: { maxFetches: 20 } } } as never, { date: true, title: false, summary: false, body: false });
   assert.equal(got.publishedAt?.toISOString(), "2026-09-24T00:00:00.000Z");
+});
+
+test("Jina text without an XHR trailer keeps markdown whole and no xhrResponses", () => {
+  const md = "# 铜价飙升\n\n[详情](https://example.org/copper)";
+  const page = parseJinaText(`Title: Foo\nURL Source: https://example.org\nPublished Time: 2026-09-26\nMarkdown Content:\n${md}`);
+  assert.equal(page.markdown, md);
+  assert.equal(page.xhrResponses, null);
+  assert.equal(page.title, "Foo");
+});
+
+test("Jina text with an XHR trailer strips it from markdown and stores it", () => {
+  const md = "# 铜价飙升\n\n正文不提及 XHR Responses 标识。";
+  const seg = JSON.stringify({ items: [{ ttl: "A", url: "/a" }] });
+  const raw = `Title: Bar\nMarkdown Content:\n${md}\nXHR Responses:\n${seg}`;
+  const page = parseJinaText(raw);
+  assert.equal(page.markdown, md);
+  assert.equal(page.xhrResponses, seg);
+  // A mention of the header inside prose (not on its own line) must not split the body.
+  const prose = parseJinaText(`Markdown Content:\n正文说 “XHR Responses: 见下”，但仍属正文。`);
+  assert.equal(prose.xhrResponses, null);
+  assert.match(prose.markdown, /XHR Responses: 见下/);
+});
+
+test("captured XHR segments map to candidates like a json_list body", () => {
+  const c = source({
+    xhrPaths: ["/api/list"],
+    xhrJsonPath: "data.items",
+    titlePaths: ["ttl"],
+    urlTemplate: "https://example.org/post/{id}",
+    summaryPaths: ["desc"],
+  });
+  const segs: unknown[] = [
+    { data: { items: [{ id: "1", ttl: "第一", desc: "摘要一" }, { id: "2", ttl: "第二", desc: "摘要二" }] } },
+    // A segment whose expression returns a raw array (wrapper-less XHR) must still resolve.
+    [{ id: "3", ttl: "第三", desc: "摘要三" }],
+  ];
+  const items: unknown[] = [];
+  const expr: string | null = "data.items";
+  for (const s of segs) {
+    const obj = s as { data?: { items?: unknown } };
+    const resolved = expr && obj.data ? obj.data.items : s;
+    if (Array.isArray(resolved)) items.push(...resolved);
+  }
+  const out = candidatesFromJsonItems(items as never[], c as never);
+  assert.deepEqual(out.map((x) => x.title), ["第一", "第二", "第三"]);
+  // The separator round-trips: render joins segments with XHR_SEGMENT_SEP, consumers split on it.
+  const joined = segs.map((s) => JSON.stringify(s)).join(XHR_SEGMENT_SEP);
+  const resplit = joined.split(XHR_SEGMENT_SEP);
+  assert.equal(resplit.length, 2);
+  assert.deepEqual(JSON.parse(resplit[0]!), segs[0]);
 });

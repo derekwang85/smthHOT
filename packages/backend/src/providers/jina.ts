@@ -9,13 +9,26 @@ export interface JinaPage {
   url: string | null;
   publishedTime: string | null;
   markdown: string;
+  /**
+   * The `XHR Responses:` trailer captured by the render service for a `scrolled` listing (SWARM 护栏 5).
+   * Absent for ordinary markdown; the trailer is stripped from `markdown` so the collectors parse it whole.
+   */
+  xhrResponses?: string | null;
 }
+
+const XHR_HEADER = "\nXHR Responses:\n";
 
 export function parseJinaText(text: string): JinaPage {
   const header = text.split(/\nMarkdown Content:\n/)[0] ?? "";
   const body = text.includes("\nMarkdown Content:\n") ? text.split(/\nMarkdown Content:\n/).slice(1).join("\nMarkdown Content:\n") : text;
   const field = (name: string) => new RegExp(`^${name}:\\s*(.+)$`, "m").exec(header)?.[1]?.trim() ?? null;
-  return { title: field("Title"), url: field("URL Source"), publishedTime: field("Published Time"), markdown: body.trim() };
+  // The trailer is the last section of the envelope; only a header on its own line starts it, so a
+  // mention inside a post's prose ("see XHR Responses: here") never splits it. The first match wins
+  // because one envelope carries a single trailer.
+  const at = body.indexOf(XHR_HEADER);
+  const xhrResponses = at >= 0 ? body.slice(at + XHR_HEADER.length).trim() || null : null;
+  const markdown = (at >= 0 ? body.slice(0, at) : body).trim();
+  return { title: field("Title"), url: field("URL Source"), publishedTime: field("Published Time"), markdown, xhrResponses };
 }
 
 /**

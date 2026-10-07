@@ -5,6 +5,10 @@ import { collapseWhitespace, stripTags } from "../lib/text.ts";
 import { readable, type ExtractedBody } from "../content/extract.ts";
 import { sanitizeBody } from "../content/sanitize.ts";
 import { jinaRead } from "../providers/jina.ts";
+import { renderRead } from "../providers/render.ts";
+import { XHR_SEGMENT_SEP } from "../render/render.ts";
+import { candidatesFromJsonItems, getPath } from "./json-list.ts";
+import { config } from "../config.ts";
 import { FetchError, type Candidate, type SourceRow } from "./types.ts";
 
 const JINA_PREFIX = "https://r.jina.ai/";
@@ -23,7 +27,7 @@ function atOffset(y: string | number, mo: string | number, d: string | number, h
  * on every host: a time with its zone, and an ISO date alone (UTC midnight). Anything else it would read
  * in the server's local zone (UTC in Docker), so "2026-09-26 10:00" is read in the source's offset instead.
  */
-export function parseLooseDate(value: string | null | undefined, utcOffset = "+08:00"): Date | null {
+export function parseLooseDate(value: string | null | undefined, utcOffset = "+08:00", dayFirst = false): Date | null {
   if (!value) return null;
   const v = value.trim();
   if (!v) return null;
@@ -31,11 +35,34 @@ export function parseLooseDate(value: string | null | undefined, utcOffset = "+0
     const direct = Date.parse(v);
     if (Number.isFinite(direct) && /\d{4}/.test(v)) return new Date(direct);
   }
+  // Day-first dates like Brazil's "25/09/2026" or "25.09.2026": Date.parse reads them in the server's zone
+  // and, worse, a day ≤ 12 would be read as month-first. Only used where a source sets publishedAtDayFirst,
+  // so "02/09/2026" is September 2 (day) not February 9, at midnight in the source's offset.
+  if (dayFirst) {
+    const df = /(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})/.exec(v);
+    if (df) {
+      const [, d, mo, y] = df;
+      return atOffset(y!, mo!, d!, 0, 0, 0, utcOffset);
+    }
+  }
   // 2026-09-26 / 2026/09/26 / 2026-09-26T10:00 / 2026年9月26日 (+ optional time), interpreted in the given offset.
   const m = /(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})日?(?:(?:T|\s*)(\d{1,2}):(\d{2})(?::(\d{2}))?)?/.exec(v);
   if (m) {
     const [, y, mo, d, h = "00", mi = "00", s = "00"] = m;
     return atOffset(y!, mo!, d!, h, mi, s, utcOffset);
+  }
+  // Arabic dates like "نُشر ٢ أكتوبر ٢٠٢٦" (Published 2 October 2026). Eastern Arabic-Indic digits are
+  // normalized, the month name mapped to its number, and the result placed in the source's offset.
+  const ar = AR_DATE.exec(v);
+  if (ar) {
+    const [, day, arMonthPlain, year] = ar;
+    const arMonth = EASTERN_AR_NUM[arMonthPlain] || arMonthPlain;
+    const month = AR_MONTHS[arMonth];
+    if (month) {
+      const d = day!.replace(/[٠-٩]/g, (c) => EASTERN_AR_NUM[c]);
+      const y = year!.replace(/[٠-٩]/g, (c) => EASTERN_AR_NUM[c]);
+      return atOffset(y, month, d, 0, 0, 0, utcOffset);
+    }
   }
   // "Sep 26, 2026": Date.parse reads it in the host's zone, so take its fields and place them in the offset.
   const en = Date.parse(v.replace(/(\d)(st|nd|rd|th)/, "$1"));
@@ -43,6 +70,24 @@ export function parseLooseDate(value: string | null | undefined, utcOffset = "+0
   const local = new Date(en);
   return atOffset(local.getFullYear(), local.getMonth() + 1, local.getDate(), local.getHours(), local.getMinutes(), local.getSeconds(), utcOffset);
 }
+
+/** Arabic month names (Gregorian) to numeric month, tolerant of ال prefix and أ/ا variants. */
+const AR_MONTHS: Record<string, number> = {
+  "يناير": 1, "فبراير": 2, "مارس": 3, "أبريل": 4, "ابريل": 4,
+  "مايو": 5, "يونيو": 6, "يونية": 6, "يوليو": 7, "يولية": 7,
+  "أغسطس": 8, "اغسطس": 8, "سبتمبر": 9, "أكتوبر": 10, "اكتوبر": 10,
+  "نوفمبر": 11, "ديسمبر": 12,
+};
+
+/** Eastern Arabic-Indic numerals (٠-٩) used alongside Arabic script, e.g. Zawya Arabic timestamps. */
+const EASTERN_AR_NUM: Record<string, string> = {
+  "٠": "0", "١": "1", "٢": "2", "٣": "3", "٤": "4",
+  "٥": "5", "٦": "6", "٧": "7", "٨": "8", "٩": "9",
+};
+
+/** Arabic dates like "نُشر ٢ أكتوبر ٢٠٢٦" (Published 2 October 2026), with optional ال on the month.
+ * Day and year may use ASCII or Eastern Arabic-Indic digits. */
+const AR_DATE = /([0-9٠-٩]{1,2})\s+(?:ال)?([\u0600-\u06FF_]+)\s+([0-9٠-٩]{4})/;
 
 /** The datePublished of the page's structured data (JSON-LD, also inside @graph or embedded app state). */
 export function jsonLdPublished($: cheerio.CheerioAPI, html: string): string | null {
@@ -111,13 +156,107 @@ function absolute(href: string | undefined, base: string): string | null {
   }
 }
 
-async function fetchListingText(source: SourceRow): Promise<{ text: string; viaJina: boolean; base: string }> {
+/**
+ * Reads a "rendered" listing's markdown. The local render service is tried first when its safety valve
+ * is on; if it is off or the connection fails, the listing falls back to Jina Reader (which needs its
+ * own key). Either way the text is markdown and parses unchanged by fromMarkdown.
+ */
+async function readRenderedMarkdown(source: SourceRow, target: string): Promise<string> {
+  if (config.renderEnabled && !config.collectSkipRender) {
+    try {
+      const page = await renderRead(target, { purpose: "source_listing", subject: `source:${source.id}`, perRead: true });
+      return page.markdown;
+    } catch {
+      // fall through to Jina below
+    }
+  }
+  const page = await jinaRead(target, { purpose: "source_listing", subject: `source:${source.id}`, cacheToleranceSeconds: source.config.cacheToleranceSeconds, perRead: true });
+  return page.markdown;
+}
+
+/**
+ * Reads a "rendered" detail page's raw Jina-format text (for regex rules against the rendered output:
+ * "Published Time: …", "# Heading"). Rendering is tried first, Jina falls back, exactly as listings do.
+ */
+async function readRenderedRaw(source: SourceRow, target: string): Promise<string> {
+  if (config.renderEnabled && !config.collectSkipRender) {
+    try {
+      const page = await renderRead(target, { purpose: "source_detail", subject: `source:${source.id}` });
+      return page.raw;
+    } catch {
+      // fall through to Jina below
+    }
+  }
+  const page = await jinaRead(target, { purpose: "source_detail", subject: `source:${source.id}` });
+  return page.raw;
+}
+
+/**
+ * Renders a listing through the local render service and returns its full DOM (the `html` format of the
+ * render service). Only collectors for "rendered" sources that also configure card selectors call this:
+ * those are lists whose items are JS-lazy-loaded on the page (TASS/Nornickel/SPA/alarabiya style), so the
+ * markdown path finds no links but the rendered DOM has them. A failure falls back to Jina, whose markdown
+ * is then parsed as usual.
+ */
+async function readRenderedHtml(source: SourceRow, target: string): Promise<{ text: string; markdown: boolean; base: string }> {
+  if (config.renderEnabled && !config.collectSkipRender) {
+    try {
+      const page = await renderRead(target, { format: "html", purpose: "source_listing", subject: `source:${source.id}`, perRead: true });
+      return { text: page.markdown, markdown: false, base: source.config.baseUrl ?? target };
+    } catch {
+      // fall through to the markdown path below
+    }
+  }
+  const page = await jinaRead(target, { purpose: "source_listing", subject: `source:${source.id}`, cacheToleranceSeconds: source.config.cacheToleranceSeconds, perRead: true });
+  return { text: page.markdown, markdown: true, base: source.config.baseUrl ?? target };
+}
+
+/**
+ * Reads a "scrolled" listing: the local render service drives the page's post-load XHR/scroll pagination
+ * and returns the captured JSON segments in xhrResponses. Each segment is parsed and the configured
+ * xhrJsonPath/itemsPath extracts its item array; the segments are merged and mapped by the shared
+ * json_list rule set. A source whose render valve is off, or that yields no items, falls back to Jina
+ * markdown exactly as a "rendered" listing would (护栏 5 回退链).
+ */
+async function readScrolledCandidates(source: SourceRow, target: string): Promise<Candidate[]> {
+  if (!config.renderEnabled || config.collectSkipRender) throw new FetchError("render disabled for scrolled");
+  const page = await renderRead(target, { wait: "dynamic", xhrPaths: (source.config.xhrPaths as string[] | undefined) ?? [], purpose: "source_listing", subject: `source:${source.id}`, perRead: true });
+  const segments = (page.xhrResponses ?? "").split(XHR_SEGMENT_SEP).map((s) => s.trim()).filter(Boolean);
+  const expr = (page.xhrResponses ? source.config.xhrJsonPath ?? source.config.itemsPath : null) as string | null;
+  const items: unknown[] = [];
+  for (const seg of segments) {
+    let parsed: unknown;
+    try { parsed = JSON.parse(seg); } catch { continue; }
+    const resolved = expr ? getPath(parsed, expr) : parsed;
+    if (Array.isArray(resolved)) items.push(...resolved);
+    // An object with itemsObjectValues may wrap the array under a known key.
+    else if (source.config.itemsObjectValues && resolved && typeof resolved === "object" && !Array.isArray(resolved)) {
+      for (const v of Object.values(resolved as Record<string, unknown>)) if (Array.isArray(v)) items.push(...v);
+    }
+  }
+  if (!items.length) throw new FetchError("no XHR list segments resolved to items");
+  return candidatesFromJsonItems(items, source);
+}
+
+async function fetchListingText(source: SourceRow): Promise<{ text: string; viaJina: boolean; base: string; html?: boolean }> {
   const url = String(source.config.url ?? "");
   if (!url) throw new FetchError("url missing");
   if (url.startsWith(JINA_PREFIX)) {
     const target = url.slice(JINA_PREFIX.length);
     const page = await jinaRead(target, { purpose: "source_listing", subject: `source:${source.id}`, cacheToleranceSeconds: source.config.cacheToleranceSeconds, perRead: true });
     return { text: page.markdown, viaJina: true, base: source.config.baseUrl ?? target };
+  }
+  if (source.config.parseMode === "rendered") {
+    // A "rendered" source that configures card selectors reads the whole rendered DOM (fromHtml needs it
+    // to see JS-lazy list links); a rendered source without them stays on the markdown path.
+    const usesCards = !!(source.config.itemSelector || source.config.linkSelector || source.config.titleSelector);
+    if (usesCards) {
+      const got = await readRenderedHtml(source, url);
+      // viaJina signals "we did not fetch static HTML"; the html flag routes fetchWebList to fromHtml.
+      return { text: got.text, viaJina: got.markdown, base: got.base, html: !got.markdown };
+    }
+    const text = await readRenderedMarkdown(source, url);
+    return { text, viaJina: true, base: source.config.baseUrl ?? url };
   }
   const res = await guardedFetch(url, { headers: { accept: "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8" }, timeoutMs: 25_000 });
   if (res.status !== 200) throw new FetchError(`HTTP ${res.status}`, res.status);
@@ -140,9 +279,11 @@ export function fromMarkdown(md: string, base: string, source: SourceRow): Candi
     if (!url || seen.has(url) || !allowed(url, source) || navigationLink(url, listing)) continue;
     if (source.config.linksStartLine === true && !startsLine(m.index!)) continue;
     const label = collapseWhitespace(m[1]!.replace(/[*_`#]/g, ""));
-    // A title attribute the card text already contains is the clean title, without dates and blurbs.
+    // A title attribute the card text already contains is the clean title, without dates and blurbs;
+    // likewise a card whose text is just a "read more" cue (a rendered listing) takes the title attribute.
     const attr = collapseWhitespace(m[3] ?? "");
-    const title = attr.length >= 6 && label.includes(attr) ? attr : label;
+    const genericCta = /^(read more|learn more|continue reading|more|阅读全文|阅读更多|查看详情|了解更多)$/i.test(label);
+    const title = attr.length >= 6 && (label.includes(attr) || genericCta) ? attr : label;
     if (title.length < 6) continue;
     seen.add(url);
     out.push({ url, title });
@@ -172,11 +313,11 @@ export function fromHtml(html: string, base: string, source: SourceRow): Candida
     let publishedAt: Date | null = null;
     if (c.publishedAtSelector) {
       const dateEl = el.find(c.publishedAtSelector).first();
-      publishedAt = parseLooseDate(dateEl.attr("datetime") ?? dateEl.attr("title") ?? dateEl.text(), c.publishedAtUtcOffset);
+      publishedAt = parseLooseDate(dateEl.attr("datetime") ?? dateEl.attr("title") ?? dateEl.text(), c.publishedAtUtcOffset, c.publishedAtDayFirst);
     }
     if (!publishedAt && c.publishedAtRegex) {
       const m = new RegExp(c.publishedAtRegex).exec($.html(el));
-      publishedAt = parseLooseDate(m?.[1], c.publishedAtUtcOffset);
+      publishedAt = parseLooseDate(m?.[1], c.publishedAtUtcOffset, c.publishedAtDayFirst);
     }
     seen.add(url);
     out.push({ url, title, publishedAt });
@@ -303,8 +444,27 @@ async function fromMimoHome(html: string, base: string, source: SourceRow): Prom
 }
 
 export async function fetchWebList(source: SourceRow): Promise<Candidate[]> {
-  const { text, viaJina, base } = await fetchListingText(source);
-  const mode = source.config.adapter === "mimo_home" ? "mimo_home" : source.config.parseMode ?? (viaJina ? "markdown" : "html");
+  // A "scrolled" source gets its items from the JSON the render service captures as the page scrolls,
+  // so it needs no listing text. If the render fails or yields nothing, fall back to the rendered
+  // markdown path (Jina fallback included, 护栏 5 回退链).
+  if (source.config.parseMode === "scrolled") {
+    const url = String(source.config.url ?? "");
+    try {
+      return await readScrolledCandidates(source, url);
+    } catch {
+      const text = await readRenderedMarkdown(source, url);
+      const out = fromMarkdown(text, url, source);
+      if (out.length === 0) throw new FetchError("scrolled render failed and markdown found no items");
+      return out;
+    }
+  }
+  const { text, viaJina, base, html } = await fetchListingText(source);
+  // A "rendered" listing generally reads through the render service and yields markdown, so it parses
+  // the same way -- except a "rendered + card selectors" source, whose payload is the whole rendered DOM,
+  // which reads as HTML (fetchListingText sets html=true for that path).
+  if (html) return fromHtml(text, base, source);
+  const declared = source.config.parseMode === "rendered" ? "markdown" : source.config.parseMode;
+  const mode = source.config.adapter === "mimo_home" ? "mimo_home" : declared ?? (viaJina ? "markdown" : "html");
   let out: Candidate[];
   if (mode === "mimo_home") out = await fromMimoHome(text, base, source);
   else if (mode === "markdown") out = fromMarkdown(text, base, source);
@@ -330,10 +490,15 @@ export interface DetailNeed {
  */
 export async function fetchDetail(url: string, source: SourceRow, need: DetailNeed): Promise<{ publishedAt: Date | null; title: string | null; summary: string | null; body: ExtractedBody | null }> {
   const d = source.config.detail ?? {};
+  const renderedListing = source.config.parseMode === "rendered";
   const jinaListing = String(source.config.url ?? "").startsWith(JINA_PREFIX);
-  const dateInJina = need.date && jinaListing && !!d.publishedAtRegex;
-  const titleInJina = need.title && jinaListing && !!d.titleRegex;
-  const jina = dateInJina || titleInJina ? (await jinaRead(url, { purpose: "source_detail", subject: `source:${source.id}` })).raw : null;
+  const dateInJina = need.date && (jinaListing || renderedListing) && !!d.publishedAtRegex;
+  const titleInJina = need.title && (jinaListing || renderedListing) && !!d.titleRegex;
+  // A "rendered" detail is read through the local render service (falling back to Jina), which returns
+  // the same text format the regex rules were written for; a Jina-prefixed listing reads it there.
+  const jina = dateInJina || titleInJina
+    ? (renderedListing && !jinaListing ? await readRenderedRaw(source, url) : (await jinaRead(url, { purpose: "source_detail", subject: `source:${source.id}` })).raw)
+    : null;
   let html: string | null = null;
   let body: ExtractedBody | null = null;
   if ((need.date && !dateInJina) || (need.title && !titleInJina) || need.summary) {

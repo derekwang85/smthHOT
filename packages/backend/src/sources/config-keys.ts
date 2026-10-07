@@ -11,6 +11,11 @@ const KEYS: Record<SourceRow["kind"], string[]> = {
   web_list: [
     ...COLLECTED, "url", "baseUrl", "parseMode", "adapter", "cacheToleranceSeconds", "linksStartLine", "preserveUrlFragment",
     "itemSelector", "linkSelector", "titleSelector", "publishedAtSelector", "publishedAtRegex", "publishedAtUtcOffset",
+    "publishedAtDayFirst",
+    // parseMode="scrolled": capture post-load XHR/scroll-paginated JSON lists. xhrPaths selects which URLs
+    // to capture, xhrJsonPath/itemsPath locate the item array, the rest are the shared json_list extractors.
+    "xhrPaths", "xhrJsonPath", "itemsPath", "itemsObjectValues", "titlePaths", "summaryPaths", "publishedAtPath",
+    "publishedAtUnit", "externalIdPath", "urlTemplate", "urlTemplateFallback", "harvestCheck",
   ],
   json_list: [
     ...COLLECTED, "url", "mode", "method", "headers", "bodyJson", "jsonKey", "windowVar", "itemsPath", "itemsObjectValues",
@@ -30,6 +35,7 @@ const NESTED: Record<string, string[]> = {
   itemUrlPrefixRewrite: ["from", "to"],
   requireBoolean: ["path", "equals"],
   minNumeric: ["path", "min"],
+  harvestCheck: ["minCandidates", "allowTopic", "denyTopic", "dedupKey", "baseResolver"],
   detail: [
     "maxFetches", "publishedAtSelector", "publishedAtRegex", "publishedAtUtcOffset", "publishedAtAuthoritative", "upgradeDatePrecision",
     "titleSelector", "titleRegex", "titleAuthoritative", "summarySelector",
@@ -38,7 +44,7 @@ const NESTED: Record<string, string[]> = {
 
 const VALUES: Record<string, string[]> = {
   adapter: ["mimo_home"],
-  parseMode: ["html", "markdown", "docusaurus_changelog"],
+  parseMode: ["html", "markdown", "docusaurus_changelog", "rendered", "scrolled"],
 };
 
 /** The config entries a source of this kind would ignore or cannot run, e.g. ["adapter=site_cards", "detail.titleFoo"]. */

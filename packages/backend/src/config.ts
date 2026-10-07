@@ -33,6 +33,13 @@ function bool(name: string, fallback: boolean): boolean {
 }
 
 
+/**
+ * SWARM 护栏 6: the render service and its client must agree on the port, so the endpoint is derived
+ * from renderPort instead of being a second independent switch that could drift. A RENDER_PORT in the
+ * environment changes both; the loopback host is fixed because the render service only binds 127.0.0.1.
+ */
+const RENDER_PORT = int("RENDER_PORT", 3003);
+
 export const config = {
   databaseUrl: str("DATABASE_URL", "postgres://127.0.0.1:5432/aihot"),
   apiPort: int("API_PORT", 3001),
@@ -43,6 +50,13 @@ export const config = {
   selectedVisibleAfterSeconds: int("SELECTED_VISIBLE_AFTER_SECONDS", 180),
   egressProxyUrl: env.EGRESS_PROXY_URL || null,
   allowPrivateNetworkFetch: bool("ALLOW_PRIVATE_NETWORK_FETCH", false),
+  // Local headless-chromium render service (src/render/server.ts): an in-house substitute for the paid
+  // Jina Reader. The safety valve is off by default; only sources declared "rendered" talk to it, and
+  // collectors that cannot reach it fall back to Jina when a JINA_API_KEY exists.
+  renderEnabled: bool("RENDER_ENABLED", false),
+  renderPort: RENDER_PORT,
+  renderEndpoint: `http://127.0.0.1:${RENDER_PORT}`,
+  collectSkipRender: bool("COLLECT_SKIP_RENDER", false),
   feishuContentPushEnabled: bool("FEISHU_CONTENT_PUSH_ENABLED", false),
   indexNowSubmitEnabled: bool("INDEXNOW_SUBMIT_ENABLED", false),
   /** IndexNow key (32 hex characters); without one nothing is submitted and no key file is served. */
