@@ -91,7 +91,7 @@ export async function recomputeSelected(nowVal = new Date()): Promise<RecomputeS
   const candidates = await sql<RankCandidate[]>`
     SELECT p.article_id AS "articleId", p.title, p.original_title AS "originalTitle", p.summary, p.reason, p.category, p.score,
            p.selected, p.visible_after AS "visibleAfter", p.published_at AS "publishedAt", p.discovered_at AS "discoveredAt",
-           s.name AS "sourceName", s.url
+           s.name AS "sourceName", p.url
     FROM publications p
     JOIN analyses a ON a.id = p.analysis_id
     JOIN sources s ON s.id = p.source_id
