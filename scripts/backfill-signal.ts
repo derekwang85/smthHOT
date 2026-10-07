@@ -133,7 +133,7 @@ for (const r of rows) {
   const [a] = await sql<EvalRow[]>`
     SELECT ar.title, ar.body_text AS "bodyText", ar.x_post AS "xPost",
            ar.published_at AS "publishedAt", ar.discovered_at AS "discoveredAt", ar.revision
-    FROM articles ar WHERE ar.id = ${r.article_id}`;
+    FROM articles ar WHERE ar.id = ${r.articleId}`;
   if (!a) continue;
 
   // 两次独立评分（与精选评分一致；第二次复用缓存 prompt），signal 取两次中认为真的任一次。
@@ -145,7 +145,7 @@ for (const r of rows) {
       const res = await chatJson({
         model,
         purpose: "score_article",
-        subject: `article:${r.article_id}@${a.revision}`,
+        subject: `article:${r.articleId}@${a.revision}`,
         promptVersion: PROMPT_VERSIONS.score,
         system: SCORE_SYSTEM,
         user: buildInput(a),
@@ -161,7 +161,7 @@ for (const r of rows) {
       }
     }
   } catch (error) {
-    console.error(`analysis ${r.id} (${r.article_id}) 评分失败，跳过: ${String(error).slice(0, 300)}`);
+    console.error(`analysis ${r.id} (${r.articleId}) 评分失败，跳过: ${String(error).slice(0, 300)}`);
     continue;
   }
 
@@ -179,7 +179,7 @@ for (const r of rows) {
       WHERE id = ${r.id} AND signal IS NULL
       RETURNING id`;
     if (upd) {
-      await tx`UPDATE publications SET is_signal = ${signal} WHERE article_id = ${r.article_id}`;
+      await tx`UPDATE publications SET is_signal = ${signal} WHERE article_id = ${r.articleId}`;
     }
     for (const id of receiptIds) await completeReceipt(tx, id);
     return !!upd;
