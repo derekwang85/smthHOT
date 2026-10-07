@@ -64,6 +64,26 @@
 - 设计 DB schema / API 契约 / 新三方集成 → 写 ADR；多方冲突先 Swarm（`methodology/13`）
 - 修 Bug → 冰山三层分析 + 涟漪 R1/R2/R3（复杂 Bug 还须 Reporter/Fixer/Verifier 三权隔离）
 
+### DCF 三轨落地约定（本仓已启用，必须遵守）
+
+> 背景：三轨数据落 `archives/`（已被本仓 `.gitignore` 显式纳入追踪），CLI 默认会写进
+> 只读 submodule `.coding-framework/archives/`，导致"建了也留不住"。故所有三轨命令
+> **必须显式设 `CODING_FW_PROJECT_DIR=/media/cbnb/_opdata/smthHOT`**，让数据落项目根。
+
+- **每次调用三轨 CLI 前**：
+  ```bash
+  export CODING_FW_PROJECT_DIR=/media/cbnb/_opdata/smthHOT
+  ```
+- **高涟漪任务强制建 WBS**（影响以下任一项 → 先用 `wbs add/…` 记录，再动手）：
+  `industry/` 的分类 `taxonomy.ts`、主题 `topics.json`、信源名单 `sources.json`、评分门槛
+  `selection.ts`、提示词 `prompts/*`、数据库 schema `database/migrations/`、API 契约
+  `apps/api/src/routes/`
+- **低涟漪任务**（文案、样式、纯文档）→ 不强制 WBS，但提交信息带 `wbs:`/`iss:`/`tc:` 前缀。
+- **提交前缀规约**：`wbs:3.04 实现…` / `iss:ISS-042 RESOLVED` / `tc:ORD-007 PASS` / `verify:…`。
+  非三轨前缀（如 `CommodityHOT:`、`feat:`）视为历史兼容，新提交统一走三轨前缀。
+- **一致性自检**：提交前跑 `bash .coding-framework/dispatch/scripts/triple-track/wbs-consistency-audit.sh`。
+- 分析留档见 [docs/dcf-adoption-analysis.md](docs/dcf-adoption-analysis.md)。
+
 ### 经验回写（十诫 IX）
 
 1. 项目私有经验 → 写本文件目录旁的 `project_memory.md`（默认 private）
