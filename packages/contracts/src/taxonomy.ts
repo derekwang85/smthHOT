@@ -20,6 +20,19 @@ export function isCategoryKey(value: unknown): value is CategoryKey {
   return typeof value === "string" && (CATEGORY_KEYS as readonly string[]).includes(value);
 }
 
+// ── 品种（commodity）词表 ────────────────────────────────────────────────────────
+// 今日影响把每条候选都归并到具体品种，不再保留「宏观/多品种」大类。品种 = 类别里除
+// macro/multi 外的单品种；换行业时若单品种含义变化，在这里调整排除规则即可。
+const NON_COMMODITY_KEYS = new Set<CategoryKey>(["macro", "multi"]);
+/** 单品种 key（copper/aluminum/lead/zinc/nickel…）。 */
+export const COMMODITY_KEYS = CATEGORIES.filter((c) => !NON_COMMODITY_KEYS.has(c.key)).map((c) => c.key) as readonly string[];
+/** 单品种显示名（铜/铝/铅/锌/镍…）。 */
+export const COMMODITY_LABELS = Object.fromEntries(CATEGORIES.filter((c) => (COMMODITY_KEYS as readonly string[]).includes(c.key)).map((c) => [c.key, c.label])) as Record<string, string>;
+/** 是否单品品种 key。 */
+export function isCommodityKey(value: unknown): value is string {
+  return typeof value === "string" && (COMMODITY_KEYS as readonly string[]).includes(value);
+}
+
 export const CHANNEL_KEYS = ["all", "news", "x", "firstParty"] as const;
 export type ChannelKey = (typeof CHANNEL_KEYS)[number];
 

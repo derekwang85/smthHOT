@@ -92,10 +92,13 @@ export function registerSite(app: FastifyInstance) {
     const filters = await parseFilters(q);
     const limit = Math.min(Math.max(Number(q.limit) || 20, 1), 40);
     const unfiltered = filters.channel === "all" && !filters.category && !filters.tag && !filters.topic && !q.cursor;
+    // 今日影响页传 impact=1，按品种/频道单独查看当日影响；精选首页不传，仅在未筛选时展示，
+    // 保证首页与被筛选影响列表两种读法互不影响。
+    const wantImpact = unfiltered || q.impact === "1";
     const [data, hot, impact] = await Promise.all([
       loadTimeline({ ...filters, cursor: q.cursor || null, limit }),
       unfiltered ? loadHotStrip() : null,
-      unfiltered ? loadTodayImpact() : null,
+      wantImpact ? loadTodayImpact(filters.channel, filters.category) : null,
     ]);
     const body = { ...data, hot, impact, generatedAt: new Date().toISOString() };
     const cc = cacheUntil(reply, 60, data.refreshAt);

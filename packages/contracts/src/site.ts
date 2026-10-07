@@ -102,17 +102,56 @@ export interface HotStripEntry {
   participantCount: number;
 }
 
-/** A "今日影响" entry: a selected item rendered like a feed card. */
-export type ImpactEntry = FeedItemSummary;
+/**
+ * 今日影响的逐品种方向判断：某条候选在某个品种上的落点传导。
+ * 商品级编辑判断——同一事实可影响多个品种，则每个受影响品种各有一条 verdict。
+ */
+export interface ImpactCommodity {
+  /** 品种 key（copper/aluminum/lead/zinc/nickel 之一）。 */
+  commodity: string;
+  /** 品种显示名（铜/铝/铅/锌/镍）。 */
+  label: string;
+  /** 方向：多 / 空 / 中性。 */
+  dir: "bull" | "bear" | "neutral" | null;
+  /** 该品种上落点最大强度（0–100），驱动排序与入选。 */
+  strength: number;
+  /** 利润落点强度 0–100。 */
+  profit: number;
+  /** 基差落点强度 0–100。 */
+  basis: number;
+  /** 库存落点强度 0–100。 */
+  stock: number;
+  /** 一句话判断：影响利润/基差/库存哪部分、怎样传导。 */
+  reason: string;
+}
 
-/** The "今日影响" list: the few selected items with the day's highest editorial attention scores,
- *  i.e. the ones a judgement call says are most likely to move the market. Empty (or null) when none. */
+/** 选入「今日影响」的一条卡片：feed 卡片 + 该品种下的方向判断。 */
+export interface ImpactEntryItem {
+  item: FeedItemSummary;
+  verdict: ImpactCommodity;
+}
+
+/** 未入选的当日候选观察：feed 卡片 + 一句判断（为何未入选/无明显关系）。 */
+export interface ImpactOmittedItem {
+  item: FeedItemSummary;
+  /** 判断句，如「该消息与铜铝铅锌镍五大品种的利润/基差/库存均无明显传导关系」。 */
+  reason: string;
+  /** 未入选的最大落点强度；一个品种都不命中时为 0。 */
+  strength: number;
+}
+
+/** 今日影响按品种归并的结果：每个受影响的品种一组，组内放落在该品种上的卡片。
+ *  与精选不同——这里没有「宏观/多品种」大类，不再只看关注度：所有候选都被逐品种判断，
+ *  影响多个品种的信息在多个组里重复出现；未达门槛或无关的候选进 omitted（其余当日观察）。 */
 export interface TodayImpact {
   /** Beijing date these are for, e.g. "2026-10-06". */
   day: string;
   /** How the list was formed, so the page can explain it to the reader. */
   basis: { threshold: number; count: number };
-  entries: ImpactEntry[];
+  /** 按品种分组的选入项（影响多品种的信息会出现在多个组）。 */
+  groups: { commodity: string; label: string; entries: ImpactEntryItem[] }[];
+  /** 其余当日观察：对所有候选的判断中，未入选（强度不足或无关）的条目及判断句。 */
+  omitted: ImpactOmittedItem[];
   generatedAt: string;
 }
 

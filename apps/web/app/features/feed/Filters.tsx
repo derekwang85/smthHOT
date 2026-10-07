@@ -1,7 +1,7 @@
 // Feed filters: the channel and category row, and search.
 import { useEffect, useRef, useState } from "react";
 import { Form, Link, useNavigation, useSearchParams } from "react-router";
-import { CATEGORY_KEYS, CATEGORY_LABELS, CHANNEL_LABELS, type CategoryKey, type ChannelKey } from "@aihot/contracts/taxonomy";
+import { CATEGORY_KEYS, CATEGORY_LABELS, CHANNEL_LABELS, COMMODITY_KEYS, COMMODITY_LABELS, type CategoryKey, type ChannelKey } from "@aihot/contracts/taxonomy";
 import { IconClose, IconSearch } from "../../components/icons";
 import { PillTabs } from "../../components/ui/Tabs";
 
@@ -32,6 +32,20 @@ export function CategoryTabs({ base, category, channel = "all", layoutId, size =
   ];
   const active = channel === "firstParty" ? "firstParty" : (category ?? "all");
   return <PillTabs items={items} active={active} layoutId={layoutId} label="筛选" size={size} className={className} />;
+}
+
+/**
+ * 今日影响的筛选条：只保留「汇总 + 单品品种（铜/铝/铅/锌/镍）」。今日影响按品种归类，
+ * 不再提供一手、宏观、多品种选项。
+ */
+export function ImpactTabs({ base, category, layoutId, size = "md", className = "" }: { base: string; category: CategoryKey | null; layoutId: string; size?: "md" | "sm"; className?: string }) {
+  const [params] = useSearchParams();
+  const items = [
+    { key: "all", label: "汇总", to: hrefWith(base, params, { category: null }) },
+    ...COMMODITY_KEYS.map((k) => ({ key: k, label: COMMODITY_LABELS[k], to: hrefWith(base, params, { category: k }) })),
+  ];
+  const active = category ?? "all";
+  return <PillTabs items={items} active={active} layoutId={layoutId} label="品种" size={size} className={className} />;
 }
 
 function useSlashFocus(ref: React.RefObject<HTMLInputElement | null>) {
