@@ -41,7 +41,7 @@ export default function ImpactPage() {
   const intro = `按品种归类的独立判断：每条大事落到冲击哪些品种的利润、基差、库存${impact && impact.basis.threshold > 0 ? ` · 入选强度 ≥ ${impact.basis.threshold}` : ""}${impact?.generatedAt ? ` · ${monthDayTime(impact.generatedAt)} 更新` : ""}`;
   return (
     <div className="pb-6">
-      {/* Desktop: 与精选首页一致的大标题 + 品种筛选条（汇总+5品种）。 */}
+      {/* Desktop: 与精选首页一致的大标题 + 品种筛选条（汇总+各品种）。 */}
       <div className="hidden lg:block">
         <h1 className="text-[24px] font-semibold leading-[1.3] text-ink">{title}</h1>
         <div className="mb-5 mt-4 flex items-center gap-4">

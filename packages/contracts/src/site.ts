@@ -134,7 +134,7 @@ export interface ImpactEntryItem {
 /** 未入选的当日候选观察：feed 卡片 + 一句判断（为何未入选/无明显关系）。 */
 export interface ImpactOmittedItem {
   item: FeedItemSummary;
-  /** 判断句，如「该消息与铜铝铅锌镍五大品种的利润/基差/库存均无明显传导关系」。 */
+  /** 判断句，如「该消息与铜铝铅锌镍及新能源品种的利润/基差/库存均无明显传导关系」。 */
   reason: string;
   /** 未入选的最大落点强度；一个品种都不命中时为 0。 */
   strength: number;
